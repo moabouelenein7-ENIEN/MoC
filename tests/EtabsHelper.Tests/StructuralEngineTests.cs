@@ -6,6 +6,7 @@ using EtabsHelper.Code;
 using EtabsHelper.Combinations;
 using EtabsHelper.Export;
 using EtabsHelper.Model;
+using System.Reflection.Metadata;
 using Xunit;
 
 namespace EtabsHelper.Tests
