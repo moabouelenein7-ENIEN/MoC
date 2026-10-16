@@ -142,6 +142,19 @@ namespace EtabsHelper.Connection
         }
 
         /// <summary>
+        /// Attaches an existing cSapModel instance directly (e.g. when loaded as an in-process ETABS plugin).
+        /// </summary>
+        public static EtabsModelInfo AttachExistingModel(cSapModel model, Action<string> log = null)
+        {
+            if (model == null) throw new ArgumentNullException(nameof(model));
+            _activeModel = model;
+            var info = GetModelInfo(model);
+            log?.Invoke($"Attached to active ETABS model: {info.FileName}");
+            ConnectionStateChanged?.Invoke(true, info.FileName);
+            return info;
+        }
+
+        /// <summary>
         /// Creates a brand-new blank model in the connected ETABS instance.
         /// </summary>
         public static void InitializeNewModel(Action<string> log = null)
