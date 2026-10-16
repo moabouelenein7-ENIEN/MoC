@@ -34,7 +34,7 @@ namespace EtabsHelper.Connection
         private static cOAPI _activeApp;
         private static cSapModel _activeModel;
 
-        public static bool IsConnected => _activeModel != null && _activeApp != null;
+        public static bool IsConnected => _activeModel != null;
         public static cSapModel ActiveModel => _activeModel;
         public static cOAPI ActiveApp => _activeApp;
         public static string InstalledFolder => _installedFolder;

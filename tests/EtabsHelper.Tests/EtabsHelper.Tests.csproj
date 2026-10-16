@@ -23,4 +23,11 @@
     <ProjectReference Include="..\..\src\EtabsHelper\EtabsHelper.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="CSiAPIv1">
+      <HintPath>C:\Program Files\Computers and Structures\ETABS 22\CSiAPIv1.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
 </Project>

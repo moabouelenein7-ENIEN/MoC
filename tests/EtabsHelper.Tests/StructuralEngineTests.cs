@@ -13,6 +13,31 @@ namespace EtabsHelper.Tests
     public class StructuralEngineTests
     {
         [Fact]
+        public void cPlugin_ImplementsCsiPluginContractAndReturnsInfo()
+        {
+            var plugin = new cPlugin();
+            Assert.NotNull(plugin);
+            string info = null;
+            int ret = plugin.Info(ref info);
+            Assert.Equal(0, ret);
+            Assert.Contains("MoC", info);
+        }
+
+        [Fact]
+        public void cPlugin_CanBeLoadedViaReflectionAsCsiContract()
+        {
+            var type = typeof(cPlugin);
+            var instance = Activator.CreateInstance(type);
+            Assert.NotNull(instance);
+            var contract = instance as CSiAPIv1.cPluginContract;
+            Assert.NotNull(contract);
+            string info = null;
+            int ret = contract.Info(ref info);
+            Assert.Equal(0, ret);
+            Assert.Equal("MoC - ETABS Structural Modeling & Design Suite (SBC 301/304)", info);
+        }
+
+        [Fact]
         public void GridSystem_ParsesNonUniformQuickFillCorrectly()
         {
             // Shorthand: 3 bays @ 6m, 1 bay @ 4.5m, 2 bays @ 5.5m

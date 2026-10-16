@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Windows.Forms;
 using CSiAPIv1;
 using EtabsHelper.Connection;
@@ -8,7 +9,7 @@ namespace EtabsHelper
 {
     /// <summary>
     /// CSI ETABS In-Process Plugin Contract implementation.
-    /// Loaded when invoked from ETABS menu: Tools -> MoC
+    /// Loaded when invoked directly from the ETABS menu: Tools -> MoC
     /// </summary>
     public class cPlugin : cPluginContract
     {
@@ -22,14 +23,26 @@ namespace EtabsHelper
                 }
 
                 Application.EnableVisualStyles();
-                using (var form = new MainWindow())
+                Application.SetCompatibleTextRenderingDefault(false);
+
+                // Attach to ETABS parent window handle so MoC runs seamlessly inside ETABS
+                IntPtr etabsHwnd = Process.GetCurrentProcess().MainWindowHandle;
+                using (var form = new MainWindow(isInProcess: true))
                 {
-                    form.ShowDialog();
+                    if (etabsHwnd != IntPtr.Zero)
+                    {
+                        var owner = new WindowWrapper(etabsHwnd);
+                        form.ShowDialog(owner);
+                    }
+                    else
+                    {
+                        form.ShowDialog();
+                    }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"MoC Plugin Error: {ex.Message}", "MoC ETABS Plugin", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show($"MoC Plugin Error: {ex.Message}\n\n{ex.StackTrace}", "MoC ETABS Plugin", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             finally
             {
@@ -39,7 +52,6 @@ namespace EtabsHelper
                 }
                 catch
                 {
-                    // Ignore finish callback errors if host detached
                 }
             }
         }
@@ -50,4 +62,15 @@ namespace EtabsHelper
             return 0;
         }
     }
+
+    internal class WindowWrapper : IWin32Window
+    {
+        public IntPtr Handle { get; }
+        public WindowWrapper(IntPtr handle) { Handle = handle; }
+    }
+}
+
+// Global namespace alias for CSI loaders that search strictly for "cPlugin" without namespace
+public class cPlugin : EtabsHelper.cPlugin
+{
 }

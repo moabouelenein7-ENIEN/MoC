@@ -24,10 +24,27 @@ namespace EtabsHelper.UI
 
         private List<Button> _navButtons = new List<Button>();
 
-        public MainWindow()
+        public MainWindow(bool isInProcess = false)
         {
             InitializeComponent();
             EtabsConnector.ConnectionStateChanged += OnConnectionChanged;
+
+            if (isInProcess && EtabsConnector.IsConnected)
+            {
+                Text = "MoC — ETABS Structural Suite [In-Process]";
+                var info = EtabsConnector.GetModelInfo();
+                _lblStatusPill.Text = "🟢 Embedded in ETABS";
+                _lblStatusPill.ForeColor = Theme.Success;
+                _lblActiveModel.Text = string.IsNullOrEmpty(info.FileName) ? "Active Model: Untitled" : $"Active Model: {info.FileName}";
+
+                // Auto-advance to DXF modeling page since ETABS is already connected
+                if (_navButtons.Count > 1)
+                {
+                    foreach (var b in _navButtons) b.BackColor = Theme.SidebarBg;
+                    _navButtons[1].BackColor = Theme.SidebarActive;
+                    ShowPage(_pageDxf);
+                }
+            }
         }
 
         private void InitializeComponent()
