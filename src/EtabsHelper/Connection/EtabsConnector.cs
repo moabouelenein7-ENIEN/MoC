@@ -85,12 +85,20 @@ namespace EtabsHelper.Connection
                 return _installedFolder == null ? "ETABS installation could not be found (no CSiAPIv1.dll)." : null;
 
             _hooked = true;
-            _installedFolder = !string.IsNullOrEmpty(customFolder) && Directory.Exists(customFolder)
-                ? customFolder
-                : FindInstalledFolder();
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            if (File.Exists(Path.Combine(baseDir, "CSiAPIv1.dll")))
+            {
+                _installedFolder = baseDir;
+            }
+            else
+            {
+                _installedFolder = !string.IsNullOrEmpty(customFolder) && Directory.Exists(customFolder)
+                    ? customFolder
+                    : FindInstalledFolder();
+            }
 
             if (_installedFolder == null)
-                return "ETABS is not detected on this system (CSiAPIv1.dll not found in Program Files\\Computers and Structures).";
+                return "ETABS is not detected on this system (CSiAPIv1.dll not found).";
 
             AppDomain.CurrentDomain.AssemblyResolve += (s, e) =>
             {

@@ -23,11 +23,12 @@
     <CsiApiDll Condition="'$(CsiApiDll)' == ''">C:\Program Files\Computers and Structures\ETABS 22\CSiAPIv1.dll</CsiApiDll>
   </PropertyGroup>
 
-  <!-- CSI ETABS COM API Reference (Resolved at runtime from installed ETABS) -->
+  <!-- CSI ETABS COM API Reference (Resolved from installed ETABS) -->
   <ItemGroup>
     <Reference Include="CSiAPIv1">
       <HintPath>$(CsiApiDll)</HintPath>
-      <Private>false</Private>
+      <Private>true</Private>
+      <CopyLocal>true</CopyLocal>
     </Reference>
   </ItemGroup>
 
