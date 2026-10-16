@@ -5,11 +5,13 @@ using CSiAPIv1;
 using EtabsHelper.Connection;
 using EtabsHelper.UI;
 
-namespace EtabsHelper
+namespace MoC
 {
     /// <summary>
     /// CSI ETABS In-Process Plugin Contract implementation.
     /// Loaded when invoked directly from the ETABS menu: Tools -> MoC
+    /// ETABS searches for `<PlugInName>.cPlugin`, so having namespace `MoC`
+    /// allows the user to register PlugIn Name "MoC" seamlessly.
     /// </summary>
     public class cPlugin : cPluginContract
     {
@@ -70,7 +72,27 @@ namespace EtabsHelper
     }
 }
 
+namespace EtabsHelper
+{
+    /// <summary>
+    /// Alias for when plugin is registered as "EtabsHelper"
+    /// </summary>
+    public class cPlugin : MoC.cPlugin
+    {
+    }
+}
+
+namespace MoCPlugin
+{
+    /// <summary>
+    /// Alias for when plugin is registered as "MoCPlugin"
+    /// </summary>
+    public class cPlugin : MoC.cPlugin
+    {
+    }
+}
+
 // Global namespace alias for CSI loaders that search strictly for "cPlugin" without namespace
-public class cPlugin : EtabsHelper.cPlugin
+public class cPlugin : MoC.cPlugin
 {
 }

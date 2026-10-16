@@ -7,19 +7,32 @@ using EtabsHelper.Combinations;
 using EtabsHelper.Export;
 using EtabsHelper.Model;
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using Xunit;
 
 namespace EtabsHelper.Tests
 {
     public class StructuralEngineTests
     {
-        [Fact]
-        public void cPlugin_ImplementsCsiPluginContractAndReturnsInfo()
+        [Theory]
+        [InlineData("MoC.cPlugin")]
+        [InlineData("EtabsHelper.cPlugin")]
+        [InlineData("MoCPlugin.cPlugin")]
+        [InlineData("cPlugin")]
+        public void cPlugin_CanBeInstantiatedUnderAllPluginNames(string typeName)
         {
-            var plugin = new cPlugin();
-            Assert.NotNull(plugin);
+            var asm = typeof(cPlugin).Assembly;
+            var type = asm.GetType(typeName);
+            Assert.NotNull(type);
+
+            var instance = Activator.CreateInstance(type);
+            Assert.NotNull(instance);
+
+            var contract = instance as CSiAPIv1.cPluginContract;
+            Assert.NotNull(contract);
+
             string info = null;
-            int ret = plugin.Info(ref info);
+            int ret = contract.Info(ref info);
             Assert.Equal(0, ret);
             Assert.Contains("MoC", info);
         }
