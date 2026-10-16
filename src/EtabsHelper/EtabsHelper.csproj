@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>EtabsHelper</AssemblyName>
+    <RootNamespace>EtabsHelper</RootNamespace>
+    <Product>ETABS Structural Helper</Product>
+    <Version>1.0.0</Version>
+    <OutputPath>bin\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <CsiApiDll Condition="'$(CsiApiDll)' == ''">C:\Program Files\Computers and Structures\ETABS 22\CSiAPIv1.dll</CsiApiDll>
+  </PropertyGroup>
+
+  <!-- CSI ETABS COM API Reference (Resolved at runtime from installed ETABS) -->
+  <ItemGroup>
+    <Reference Include="CSiAPIv1">
+      <HintPath>$(CsiApiDll)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
