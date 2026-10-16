@@ -31,17 +31,17 @@ namespace EtabsHelper.UI.Pages
 
         private void InitializeComponent()
         {
-            Dock = DockStyle.Fill;
-            BackColor = Theme.WindowBg;
-
+            Size = new Size(1100, 700);
             var mainSplit = new SplitContainer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 560,
-                Panel1MinSize = 400,
-                Panel2MinSize = 300
+                Size = new Size(1100, 700),
+                Panel1MinSize = 100,
+                Panel2MinSize = 100
             };
+            try { mainSplit.SplitterDistance = 560; } catch { }
+            mainSplit.HandleCreated += (s, e) => { try { mainSplit.SplitterDistance = 560; } catch { } };
 
             // Left Panel: Grids and Stories Input Tables
             var leftPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(12) };

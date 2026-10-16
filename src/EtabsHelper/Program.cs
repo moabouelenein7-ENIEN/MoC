@@ -1,94 +1,94 @@
 using System;
 using System.IO;
 using System.Reflection;
-using System.Runtime.Loader;
+using System.Runtime.CompilerServices;
 using System.Windows.Forms;
-using EtabsHelper.Connection;
 using EtabsHelper.UI;
 
 namespace EtabsHelper
 {
     internal static class Program
     {
-        static Program()
-        {
-            // Register assembly resolver for CSiAPIv1 before any types referencing it are JITed
-            AppDomain.CurrentDomain.AssemblyResolve += OnAssemblyResolve;
-            try
-            {
-                AssemblyLoadContext.Default.Resolving += OnContextResolving;
-            }
-            catch
-            {
-                // Ignore if not supported on runtime
-            }
-        }
-
-        private static Assembly OnAssemblyResolve(object sender, ResolveEventArgs args)
-        {
-            var name = new AssemblyName(args.Name).Name;
-            if (!string.Equals(name, "CSiAPIv1", StringComparison.OrdinalIgnoreCase))
-                return null;
-
-            return FindCsiDll();
-        }
-
-        private static Assembly OnContextResolving(AssemblyLoadContext context, AssemblyName assemblyName)
-        {
-            if (!string.Equals(assemblyName.Name, "CSiAPIv1", StringComparison.OrdinalIgnoreCase))
-                return null;
-
-            var asm = FindCsiDll();
-            return asm != null ? context.LoadFromAssemblyPath(asm.Location) : null;
-        }
-
-        private static Assembly FindCsiDll()
-        {
-            // 1. Same folder as executable
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string localDll = Path.Combine(baseDir, "CSiAPIv1.dll");
-            if (File.Exists(localDll))
-            {
-                try { return Assembly.LoadFrom(localDll); } catch { }
-            }
-
-            // 2. Installed ETABS directory
-            string folder = EtabsConnector.FindInstalledFolder();
-            if (!string.IsNullOrEmpty(folder))
-            {
-                string csiDll = Path.Combine(folder, "CSiAPIv1.dll");
-                if (File.Exists(csiDll))
-                {
-                    try { return Assembly.LoadFrom(csiDll); } catch { }
-                }
-            }
-
-            return null;
-        }
-
         [STAThread]
         private static void Main()
         {
-            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
-            AppDomain.CurrentDomain.UnhandledException += (s, e) =>
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string logPath = Path.Combine(baseDir, "debug.log");
+            File.WriteAllText(logPath, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] MoC initializing...\n");
+
+            // Attach early assembly resolution for CSiAPIv1 before LaunchUi is JIT-compiled
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, args) =>
             {
-                var ex = e.ExceptionObject as Exception;
-                MessageBox.Show($"Startup Error: {ex?.Message}\n\n{ex?.StackTrace}",
-                    "MoC Startup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                var asmName = new AssemblyName(args.Name).Name;
+                if (!string.Equals(asmName, "CSiAPIv1", StringComparison.OrdinalIgnoreCase))
+                    return null;
+
+                string local = Path.Combine(baseDir, "CSiAPIv1.dll");
+                if (File.Exists(local))
+                {
+                    File.AppendAllText(logPath, $"[AssemblyResolve] Loading local CSiAPIv1 from {local}\n");
+                    return Assembly.LoadFrom(local);
+                }
+
+                string[] knownPaths = new[]
+                {
+                    @"C:\Program Files\Computers and Structures\ETABS 22\CSiAPIv1.dll",
+                    @"C:\Program Files\Computers and Structures\ETABS 21\CSiAPIv1.dll",
+                    @"C:\Program Files\Computers and Structures\ETABS 20\CSiAPIv1.dll",
+                    @"C:\Program Files\Computers and Structures\ETABS 19\CSiAPIv1.dll"
+                };
+
+                foreach (var path in knownPaths)
+                {
+                    if (File.Exists(path))
+                    {
+                        File.AppendAllText(logPath, $"[AssemblyResolve] Loading ETABS CSiAPIv1 from {path}\n");
+                        return Assembly.LoadFrom(path);
+                    }
+                }
+
+                File.AppendAllText(logPath, "[AssemblyResolve] CSiAPIv1.dll NOT found in any known locations!\n");
+                return null;
             };
+
+            try
+            {
+                LaunchUi(logPath);
+            }
+            catch (Exception ex)
+            {
+                File.AppendAllText(logPath, $"[FATAL CRASH] {ex.GetType().FullName}: {ex.Message}\n{ex.StackTrace}\n");
+                if (ex.InnerException != null)
+                {
+                    File.AppendAllText(logPath, $"[INNER EXCEPTION] {ex.InnerException.GetType().FullName}: {ex.InnerException.Message}\n{ex.InnerException.StackTrace}\n");
+                }
+                MessageBox.Show($"Startup Error:\n\n{ex.Message}\n\nCheck debug.log for details.", "MoC Startup Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void LaunchUi(string logPath)
+        {
+            File.AppendAllText(logPath, "[LaunchUi] Step 1: Setting unhandled exception mode...\n");
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
 
             Application.ThreadException += (s, e) =>
             {
-                MessageBox.Show($"Application Error: {e.Exception.Message}\n\n{e.Exception.StackTrace}",
-                    "MoC Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                File.AppendAllText(logPath, $"[ThreadException] {e.Exception.Message}\n{e.Exception.StackTrace}\n");
+                MessageBox.Show($"Application Error: {e.Exception.Message}", "MoC Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             };
 
-            // Ensure ETABS connector resolver is prepared
-            EtabsConnector.Prepare();
-
+            File.AppendAllText(logPath, "[LaunchUi] Step 2: Enabling visual styles...\n");
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new MainWindow());
+
+            File.AppendAllText(logPath, "[LaunchUi] Step 3: Instantiating MainWindow...\n");
+            var window = new MainWindow();
+
+            File.AppendAllText(logPath, "[LaunchUi] Step 4: Starting Windows Forms message loop...\n");
+            Application.Run(window);
+
+            File.AppendAllText(logPath, "[LaunchUi] Step 5: MainWindow closed normally.\n");
         }
     }
 }

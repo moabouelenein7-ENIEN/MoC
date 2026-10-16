@@ -30,18 +30,17 @@ namespace EtabsHelper.UI.Pages
 
         private void InitializeComponent()
         {
-            Dock = DockStyle.Fill;
-            BackColor = Theme.WindowBg;
-            Padding = new Padding(16);
-
+            Size = new Size(1100, 700);
             var mainSplit = new SplitContainer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 420,
-                Panel1MinSize = 360,
-                Panel2MinSize = 300
+                Size = new Size(1100, 700),
+                Panel1MinSize = 100,
+                Panel2MinSize = 100
             };
+            try { mainSplit.SplitterDistance = 420; } catch { }
+            mainSplit.HandleCreated += (s, e) => { try { mainSplit.SplitterDistance = 420; } catch { } };
 
             // Left: Parameters Form
             var leftPanel = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(0, 0, 12, 0) };

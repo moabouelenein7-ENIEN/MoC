@@ -29,17 +29,17 @@ namespace EtabsHelper.UI.Pages
 
         private void InitializeComponent()
         {
-            Dock = DockStyle.Fill;
-            BackColor = Theme.WindowBg;
-
+            Size = new Size(1100, 700);
             var mainSplit = new SplitContainer
             {
                 Dock = DockStyle.Fill,
                 Orientation = Orientation.Vertical,
-                SplitterDistance = 540,
-                Panel1MinSize = 380,
-                Panel2MinSize = 300
+                Size = new Size(1100, 700),
+                Panel1MinSize = 100,
+                Panel2MinSize = 100
             };
+            try { mainSplit.SplitterDistance = 540; } catch { }
+            mainSplit.HandleCreated += (s, e) => { try { mainSplit.SplitterDistance = 540; } catch { } };
 
             // Left: DXF Layer Configuration
             var leftPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12) };
