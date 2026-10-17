@@ -18,6 +18,9 @@ namespace EtabsHelper.Connection
         public int StoryCount { get; set; }
         public int FrameCount { get; set; }
         public int AreaCount { get; set; }
+        public int SelectedFramesCount { get; set; }
+        public int SelectedAreasCount { get; set; }
+        public int SelectedPointsCount { get; set; }
         public string Version { get; set; } = "";
     }
 
@@ -272,7 +275,102 @@ namespace EtabsHelper.Connection
             }
             catch { }
 
+            // Query live selection in active model
+            try
+            {
+                int numSelected = 0;
+                int[] objTypes = null;
+                string[] objNames = null;
+                m.SelectObj.GetSelected(ref numSelected, ref objTypes, ref objNames);
+                if (numSelected > 0 && objTypes != null)
+                {
+                    for (int i = 0; i < numSelected; i++)
+                    {
+                        if (objTypes[i] == 1) info.SelectedPointsCount++;
+                        else if (objTypes[i] == 2) info.SelectedFramesCount++;
+                        else if (objTypes[i] == 5) info.SelectedAreasCount++;
+                    }
+                }
+            }
+            catch { }
+
             return info;
+        }
+
+        /// <summary>
+        /// Attempts to auto-connect quietly to any running ETABS instance without throwing exceptions.
+        /// </summary>
+        public static bool TryAutoConnect(Action<string> log = null)
+        {
+            if (IsConnected) return true;
+            try
+            {
+                string prep = Prepare();
+                if (prep != null) return false;
+
+                cHelper helper = new Helper();
+                cOAPI app = helper.GetObject(EtabsProgId);
+                if (app != null && app.SapModel != null)
+                {
+                    _activeApp = app;
+                    _activeModel = app.SapModel;
+                    var info = GetModelInfo(_activeModel);
+                    log?.Invoke($"Auto-connected to running ETABS {info.Version}! Active model: {info.FileName}");
+                    ConnectionStateChanged?.Invoke(true, info.FileName);
+                    return true;
+                }
+            }
+            catch
+            {
+                // Suppress exception for silent auto-connection probing
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Triggers full structural analysis in the active ETABS model (F5).
+        /// </summary>
+        public static bool RunAnalysis(Action<string> log = null)
+        {
+            if (!IsConnected) return false;
+            try
+            {
+                log?.Invoke("Starting structural analysis in ETABS (F5)...");
+                int ret = _activeModel.Analyze.RunAnalysis();
+                if (ret == 0)
+                {
+                    log?.Invoke("Analysis completed successfully.");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"Error executing analysis: {ex.Message}");
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Triggers concrete frame design in the active ETABS model (Shift+F6).
+        /// </summary>
+        public static bool StartConcreteDesign(Action<string> log = null)
+        {
+            if (!IsConnected) return false;
+            try
+            {
+                log?.Invoke("Starting concrete frame design in ETABS (Shift+F6)...");
+                int ret = _activeModel.DesignConcrete.StartDesign();
+                if (ret == 0)
+                {
+                    log?.Invoke("Concrete design completed successfully.");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                log?.Invoke($"Error executing design: {ex.Message}");
+            }
+            return false;
         }
 
         /// <summary>

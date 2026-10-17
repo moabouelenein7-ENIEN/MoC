@@ -25,6 +25,7 @@ namespace EtabsHelper.UI
         private PageResultsSafe _pageResults;
 
         private List<Button> _navButtons = new List<Button>();
+        private System.Windows.Forms.Timer _syncTimer;
 
         public MainWindow(bool isInProcess = false)
         {
@@ -33,20 +34,65 @@ namespace EtabsHelper.UI
 
             if (isInProcess && EtabsConnector.IsConnected)
             {
-                Text = "MoCSI — ETABS Structural Suite [In-Process]";
+                Text = "MoCSI — ETABS Structural Suite [Embedded In-Process]";
                 var info = EtabsConnector.GetModelInfo();
                 _lblStatusPill.Text = "🟢 Embedded in ETABS";
                 _lblStatusPill.ForeColor = Theme.Success;
                 _lblActiveModel.Text = string.IsNullOrEmpty(info.FileName) ? "Active Model: Untitled" : $"Active Model: {info.FileName}";
-
-                // Auto-advance to DXF modeling page since ETABS is already connected
-                if (_navButtons.Count > 1)
-                {
-                    foreach (var b in _navButtons) b.BackColor = Theme.SidebarBg;
-                    _navButtons[1].BackColor = Theme.SidebarActive;
-                    ShowPage(_pageDxf);
-                }
+                _pageConn.RefreshModelStatus(info);
             }
+            else
+            {
+                // Attempt automatic background connection to any active ETABS instance
+                System.Threading.ThreadPool.QueueUserWorkItem(_ =>
+                {
+                    bool ok = EtabsConnector.TryAutoConnect(Log);
+                    if (ok && !IsDisposed)
+                    {
+                        try
+                        {
+                            Invoke(new Action(() =>
+                            {
+                                var info = EtabsConnector.GetModelInfo();
+                                OnConnectionChanged(true, info.FileName);
+                                _pageConn.RefreshModelStatus(info);
+                            }));
+                        }
+                        catch { }
+                    }
+                });
+            }
+
+            // Periodic sync timer for live selection and model state
+            _syncTimer = new System.Windows.Forms.Timer { Interval = 2500 };
+            _syncTimer.Tick += (s, e) =>
+            {
+                if (EtabsConnector.IsConnected && !IsDisposed)
+                {
+                    try
+                    {
+                        var info = EtabsConnector.GetModelInfo();
+                        _lblActiveModel.Text = string.IsNullOrEmpty(info.FileName) ? "Model: Untitled" : $"Model: {info.FileName}";
+                        if (info.SelectedFramesCount > 0 || info.SelectedAreasCount > 0)
+                        {
+                            _lblStatusPill.Text = $"🟢 Connected | 🎯 {info.SelectedFramesCount} Frm, {info.SelectedAreasCount} Shl Selected";
+                        }
+                        else
+                        {
+                            _lblStatusPill.Text = "🟢 Connected to ETABS";
+                        }
+                    }
+                    catch { }
+                }
+            };
+            _syncTimer.Start();
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            _syncTimer?.Stop();
+            _syncTimer?.Dispose();
+            base.OnFormClosed(e);
         }
 
         private void InitializeComponent()
@@ -84,7 +130,7 @@ namespace EtabsHelper.UI
             };
 
             // Initialize Pages
-            _pageConn = new PageConnection(Log);
+            _pageConn = new PageConnection(Log, (pageIdx) => NavigateTo(pageIdx));
             _pageGrids = new PageGridsStories(Log);
             _pageDxf = new PageDxf(Log, (extracted) =>
             {
@@ -99,7 +145,7 @@ namespace EtabsHelper.UI
             _pageResults = new PageResultsSafe(Log);
 
             // Add Navigation Buttons
-            AddNavButton(pnlNav, "🔗 Connection & Model", _pageConn, true);
+            AddNavButton(pnlNav, "🏛️ Model Dashboard", _pageConn, true);
             AddNavButton(pnlNav, "📐 DXF Plans & Layers", _pageDxf);
             AddNavButton(pnlNav, "📏 Grids & Stories", _pageGrids);
             AddNavButton(pnlNav, "🏗️ Sections & Modifiers", _pageSections);
