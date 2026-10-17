@@ -18,8 +18,10 @@ namespace EtabsHelper.UI
         private PageDxf _pageDxf;
         private PageGridsStories _pageGrids;
         private PageSections _pageSections;
+        private PageWallLoads _pageWalls;
         private PageSeismic _pageSeismic;
         private PageCombos _pageCombos;
+        private PageRebarDesign _pageRebar;
         private PageResultsSafe _pageResults;
 
         private List<Button> _navButtons = new List<Button>();
@@ -53,14 +55,14 @@ namespace EtabsHelper.UI
             Font = Theme.BodyFont;
             BackColor = Theme.WindowBg;
             StartPosition = FormStartPosition.CenterScreen;
-            Size = new Size(1180, 780);
-            MinimumSize = new Size(1000, 650);
+            Size = new Size(1220, 800);
+            MinimumSize = new Size(1050, 680);
 
             // Left Sidebar
             _sidebar = new Panel
             {
                 Dock = DockStyle.Left,
-                Width = 230,
+                Width = 240,
                 BackColor = Theme.SidebarBg,
                 Padding = new Padding(0)
             };
@@ -90,8 +92,10 @@ namespace EtabsHelper.UI
                 _pageGrids.Grids.YGrids = extracted.YGrids;
             });
             _pageSections = new PageSections(Log);
+            _pageWalls = new PageWallLoads(Log);
             _pageSeismic = new PageSeismic(Log);
             _pageCombos = new PageCombos(Log);
+            _pageRebar = new PageRebarDesign(Log);
             _pageResults = new PageResultsSafe(Log);
 
             // Add Navigation Buttons
@@ -99,9 +103,11 @@ namespace EtabsHelper.UI
             AddNavButton(pnlNav, "📐 DXF Plans & Layers", _pageDxf);
             AddNavButton(pnlNav, "📏 Grids & Stories", _pageGrids);
             AddNavButton(pnlNav, "🏗️ Sections & Modifiers", _pageSections);
+            AddNavButton(pnlNav, "🧱 Smart Wall Loads", _pageWalls);
             AddNavButton(pnlNav, "⚡ Seismic (SBC 301)", _pageSeismic);
             AddNavButton(pnlNav, "🔀 Load Combos (SBC 304)", _pageCombos);
-            AddNavButton(pnlNav, "📊 Results & SAFE Export", _pageResults);
+            AddNavButton(pnlNav, "🧬 Rebar Detailing (SBC 304)", _pageRebar);
+            AddNavButton(pnlNav, "📊 Reactions & SAFE Export", _pageResults);
 
             _sidebar.Controls.Add(pnlNav);
             _sidebar.Controls.Add(pnlBrand);
@@ -197,9 +203,11 @@ namespace EtabsHelper.UI
                     1 => _pageDxf,
                     2 => _pageGrids,
                     3 => _pageSections,
-                    4 => _pageSeismic,
-                    5 => _pageCombos,
-                    6 => _pageResults,
+                    4 => _pageWalls,
+                    5 => _pageSeismic,
+                    6 => _pageCombos,
+                    7 => _pageRebar,
+                    8 => _pageResults,
                     _ => _pageConn
                 };
                 ShowPage(target);

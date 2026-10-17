@@ -174,5 +174,87 @@ namespace EtabsHelper.Tests
                 if (File.Exists(tempFile)) File.Delete(tempFile);
             }
         }
+
+        [Fact]
+        public void WallLoadEngine_CalculatesAccurateLinearLoads()
+        {
+            var res = EtabsHelper.Loads.WallLoadEngine.Calculate(
+                storyHeightM: 3.0,
+                beamDepthM: 0.60,
+                wallThicknessMm: 200,
+                blockDensityKNm3: 12.0,
+                plasterMmEachSide: 20,
+                plasterDensityKNm3: 21.0,
+                openingPercent: 15.0);
+
+            Assert.Equal(2.40, res.ClearHeightM);
+            Assert.Equal(5.76, res.BlockLoadKNm);
+            Assert.Equal(2.016, res.PlasterLoadKNm);
+            Assert.Equal(7.776, res.GrossLoadKNm);
+            Assert.Equal(6.61, res.NetLoadKNm); // 7.776 * 0.85 = 6.6096 -> 6.61
+        }
+
+        [Fact]
+        public void RebarTranslator_BeamDetailingEnforcesMinimums()
+        {
+            // bw=250, h=600, As_req=300 (lower than As_min)
+            var beam = EtabsHelper.Analysis.RebarTranslatorEngine.TranslateBeam(
+                memberId: "B1",
+                story: "Story 1",
+                sectionName: "B 25x60",
+                location: "Top",
+                bwMm: 250,
+                hMm: 600,
+                asReqMm2: 300,
+                preferredDiameter: 16);
+
+            // As,min for 250x600 is ~458 mm2
+            Assert.True(beam.AsMinMm2 > 450);
+            Assert.Equal(beam.AsMinMm2, beam.AsGoverningMm2);
+            // Must have at least 3 Φ16 bars (3 * 201 = 603 mm2 >= 458)
+            Assert.True(beam.BarCount >= 3);
+            Assert.Equal(16, beam.SelectedDiameterMm);
+            Assert.Contains("Governed by As,min", beam.Notes);
+        }
+
+        [Fact]
+        public void RebarTranslator_ColumnDetailingEnforcesEvenAndRhoMin()
+        {
+            // 300x600 column, Ag = 180,000 mm2, As_min (1%) = 1,800 mm2
+            var col = EtabsHelper.Analysis.RebarTranslatorEngine.TranslateColumn(
+                memberId: "C1",
+                story: "Story 1",
+                sectionName: "C 30x60",
+                bMm: 300,
+                hMm: 600,
+                asReqMm2: 1200,
+                preferredDiameter: 20);
+
+            Assert.Equal(1800, col.AsMinMm2);
+            Assert.Equal(1800, col.AsGoverningMm2);
+            // Bar count must be even (6 bars Φ20 = 1885 mm2 >= 1800)
+            Assert.True(col.BarCount % 2 == 0);
+            Assert.True(col.BarCount >= 6);
+            Assert.Equal(20, col.SelectedDiameterMm);
+        }
+
+        [Fact]
+        public void Sbc301Seismic_CsNearFaultCheckForHighS1()
+        {
+            var p = new SeismicParameters
+            {
+                Ss = 1.2,
+                S1 = 0.70, // >= 0.60g near-fault
+                SoilClass = SiteClass.D,
+                ImportanceFactor = 1.0,
+                System = new SeismicSystemType { Name = "SMF", R = 8.0, Cd = 5.5, Omega0 = 3.0 }
+            };
+
+            // SBC 301 Eq. 11.8-6: Cs_min >= (0.5 * S1) / (R/I) = (0.5 * 0.7) / 8 = 0.04375
+            double cs = p.CalculateCs(periodT: 2.5); // long period where normal Cs is small
+            double expectedMinNearFault = (0.5 * 0.70) / 8.0;
+
+            Assert.True(cs >= expectedMinNearFault);
+        }
     }
 }

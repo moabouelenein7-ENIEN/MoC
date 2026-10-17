@@ -48,70 +48,75 @@ namespace EtabsHelper.Code
         {
             get
             {
-                // SDC based on Sds and Sd1 for Risk Cat II
-                char sdcS = Sds < 0.167 ? 'A' : Sds < 0.33 ? 'B' : Sds < 0.50 ? 'C' : 'D';
-                char sdc1 = Sd1 < 0.067 ? 'A' : Sd1 < 0.133 ? 'B' : Sd1 < 0.20 ? 'C' : 'D';
+                // SDC based on Sds, Sd1, Risk Category and S1 per SBC 301 Tables 11.6-1 & 11.6-2
+                if (S1 >= 0.75)
+                    return ImportanceFactor > 1.25 ? "F" : "E";
+
+                char sdcS;
+                if (ImportanceFactor > 1.25) // Risk Category IV
+                {
+                    sdcS = Sds < 0.167 ? 'A' : Sds < 0.33 ? 'C' : 'D';
+                }
+                else
+                {
+                    sdcS = Sds < 0.167 ? 'A' : Sds < 0.33 ? 'B' : Sds < 0.50 ? 'C' : 'D';
+                }
+
+                char sdc1;
+                if (ImportanceFactor > 1.25) // Risk Category IV
+                {
+                    sdc1 = Sd1 < 0.067 ? 'A' : Sd1 < 0.133 ? 'C' : 'D';
+                }
+                else
+                {
+                    sdc1 = Sd1 < 0.067 ? 'A' : Sd1 < 0.133 ? 'B' : Sd1 < 0.20 ? 'C' : 'D';
+                }
+
                 return ((char)Math.Max(sdcS, sdc1)).ToString();
             }
         }
 
+        private static double Interpolate(double val, double[] x, double[] y)
+        {
+            if (val <= x[0]) return y[0];
+            if (val >= x[x.Length - 1]) return y[y.Length - 1];
+            for (int i = 0; i < x.Length - 1; i++)
+            {
+                if (val >= x[i] && val <= x[i + 1])
+                {
+                    double ratio = (val - x[i]) / (x[i + 1] - x[i]);
+                    return Math.Round(y[i] + ratio * (y[i + 1] - y[i]), 3);
+                }
+            }
+            return y[0];
+        }
+
         public static double CalculateFa(SiteClass sc, double ss)
         {
-            if (sc == SiteClass.A) return 0.8;
-            if (sc == SiteClass.B) return 1.0;
-            if (sc == SiteClass.C)
+            double[] bps = { 0.25, 0.50, 0.75, 1.00, 1.25 };
+            return sc switch
             {
-                if (ss <= 0.5) return 1.2;
-                if (ss >= 1.0) return 1.0;
-                return 1.2 - 0.4 * (ss - 0.5);
-            }
-            if (sc == SiteClass.D)
-            {
-                if (ss <= 0.25) return 1.6;
-                if (ss <= 0.5) return 1.4;
-                if (ss <= 0.75) return 1.2;
-                if (ss <= 1.0) return 1.1;
-                return 1.0;
-            }
-            if (sc == SiteClass.E)
-            {
-                if (ss <= 0.25) return 2.5;
-                if (ss <= 0.5) return 1.7;
-                if (ss <= 0.75) return 1.2;
-                return 0.9;
-            }
-            return 1.0;
+                SiteClass.A => 0.8,
+                SiteClass.B => 1.0,
+                SiteClass.C => Interpolate(ss, bps, new[] { 1.2, 1.2, 1.1, 1.0, 1.0 }),
+                SiteClass.D => Interpolate(ss, bps, new[] { 1.6, 1.4, 1.2, 1.1, 1.0 }),
+                SiteClass.E => Interpolate(ss, bps, new[] { 2.5, 1.7, 1.2, 0.9, 0.9 }),
+                _ => 1.0
+            };
         }
 
         public static double CalculateFv(SiteClass sc, double s1)
         {
-            if (sc == SiteClass.A) return 0.8;
-            if (sc == SiteClass.B) return 1.0;
-            if (sc == SiteClass.C)
+            double[] bps = { 0.10, 0.20, 0.30, 0.40, 0.50 };
+            return sc switch
             {
-                if (s1 <= 0.1) return 1.7;
-                if (s1 <= 0.2) return 1.6;
-                if (s1 <= 0.3) return 1.5;
-                if (s1 <= 0.4) return 1.4;
-                return 1.3;
-            }
-            if (sc == SiteClass.D)
-            {
-                if (s1 <= 0.1) return 2.4;
-                if (s1 <= 0.2) return 2.0;
-                if (s1 <= 0.3) return 1.8;
-                if (s1 <= 0.4) return 1.6;
-                return 1.5;
-            }
-            if (sc == SiteClass.E)
-            {
-                if (s1 <= 0.1) return 3.5;
-                if (s1 <= 0.2) return 3.2;
-                if (s1 <= 0.3) return 2.8;
-                if (s1 <= 0.4) return 2.4;
-                return 2.4;
-            }
-            return 1.0;
+                SiteClass.A => 0.8,
+                SiteClass.B => 1.0,
+                SiteClass.C => Interpolate(s1, bps, new[] { 1.7, 1.6, 1.5, 1.4, 1.3 }),
+                SiteClass.D => Interpolate(s1, bps, new[] { 2.4, 2.0, 1.8, 1.6, 1.5 }),
+                SiteClass.E => Interpolate(s1, bps, new[] { 3.5, 3.2, 2.8, 2.4, 2.4 }),
+                _ => 1.0
+            };
         }
 
         /// <summary>
@@ -156,7 +161,7 @@ namespace EtabsHelper.Code
         }
 
         /// <summary>
-        /// Calculates the Seismic Response Coefficient Cs for a given fundamental period T.
+        /// Calculates the Seismic Response Coefficient Cs for a given fundamental period T per SBC 301 Eq. 11.8.
         /// </summary>
         public double CalculateCs(double periodT)
         {
@@ -164,15 +169,23 @@ namespace EtabsHelper.Code
             double rOverI = System.R / ImportanceFactor;
             double cs = Sds / rOverI;
 
-            // Maximum limit
+            // Maximum limit per SBC 301 Eq. 11.8-3 & 11.8-4
             double csMax = periodT <= LongPeriodTL
                 ? Sd1 / (periodT * rOverI)
                 : (Sd1 * LongPeriodTL) / (periodT * periodT * rOverI);
 
             if (cs > csMax) cs = csMax;
 
-            // Minimum limit
+            // Minimum limit per SBC 301 Eq. 11.8-5
             double csMin = Math.Max(0.044 * Sds * ImportanceFactor, 0.01);
+
+            // High seismicity near-fault check per SBC 301 Eq. 11.8-6 (for S1 >= 0.6g)
+            if (S1 >= 0.6)
+            {
+                double csMinNearFault = (0.5 * S1) / rOverI;
+                if (csMin < csMinNearFault) csMin = csMinNearFault;
+            }
+
             if (cs < csMin) cs = csMin;
 
             return Math.Round(cs, 5);

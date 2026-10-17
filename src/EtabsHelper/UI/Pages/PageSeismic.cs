@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -104,18 +105,160 @@ namespace EtabsHelper.UI.Pages
             leftPanel.Controls.AddRange(new Control[] { lblHeader, lblCity, _cbCity, lblSoil, _cbSoil, lblSystem, _cbSystem, cardCalc, btnInject });
             mainSplit.Panel1.Controls.Add(leftPanel);
 
-            // Right: Response Spectrum Curve Table
-            var rightPanel = new Panel { Dock = DockStyle.Fill };
-            var lblSpectrumTitle = new Label { Text = "Design Response Spectrum (Sa vs Period T)", Font = Theme.SubheaderFont, ForeColor = Theme.TextDark, Dock = DockStyle.Top, Height = 28 };
+            // Right: Response Spectrum Graph & Curve Table
+            var rightSplit = new SplitContainer
+            {
+                Dock = DockStyle.Fill,
+                Orientation = Orientation.Horizontal,
+                Panel1MinSize = 220,
+                Panel2MinSize = 140
+            };
+            try { rightSplit.SplitterDistance = 320; } catch { }
+
+            // Top: Spectrum Graph
+            var pnlGraphHeader = new Panel { Dock = DockStyle.Top, Height = 28 };
+            var lblSpectrumTitle = new Label { Text = "📈 SBC 301 Design Response Spectrum Curve (Sa vs Period T)", Font = Theme.SubheaderFont, ForeColor = Theme.TextDark, AutoSize = true, Location = new Point(0, 4) };
+            pnlGraphHeader.Controls.Add(lblSpectrumTitle);
+
+            _spectrumCanvas = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
+            _spectrumCanvas.Paint += OnPaintSpectrumCanvas;
+            _spectrumCanvas.Resize += (s, e) => _spectrumCanvas.Invalidate();
+
+            var pnlGraphContainer = new Panel { Dock = DockStyle.Fill };
+            pnlGraphContainer.Controls.Add(_spectrumCanvas);
+            pnlGraphContainer.Controls.Add(pnlGraphHeader);
+            rightSplit.Panel1.Controls.Add(pnlGraphContainer);
+
+            // Bottom: Spectrum Table
+            var pnlTableContainer = new Panel { Dock = DockStyle.Fill };
+            var lblTableTitle = new Label { Text = "Spectrum Data Points Table", Font = Theme.BoldFont, ForeColor = Theme.TextDark, Dock = DockStyle.Top, Height = 24 };
             _spectrumTable = Theme.CreateStyledGrid();
             _spectrumTable.Dock = DockStyle.Fill;
             _spectrumTable.Columns.Add("T", "Period T (sec)");
             _spectrumTable.Columns.Add("Sa", "Spectral Acceleration Sa (g)");
-            rightPanel.Controls.Add(_spectrumTable);
-            rightPanel.Controls.Add(lblSpectrumTitle);
-            mainSplit.Panel2.Controls.Add(rightPanel);
+            pnlTableContainer.Controls.Add(_spectrumTable);
+            pnlTableContainer.Controls.Add(lblTableTitle);
+            rightSplit.Panel2.Controls.Add(pnlTableContainer);
+
+            mainSplit.Panel2.Controls.Add(rightSplit);
 
             Controls.Add(mainSplit);
+        }
+
+        private Panel _spectrumCanvas;
+        private List<(double Period, double Sa)> _currentCurve = new List<(double Period, double Sa)>();
+
+        private void OnPaintSpectrumCanvas(object sender, PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            int w = _spectrumCanvas.Width;
+            int h = _spectrumCanvas.Height;
+            if (w < 100 || h < 100) return;
+
+            int padLeft = 60, padRight = 30, padTop = 30, padBottom = 45;
+            int plotW = w - padLeft - padRight;
+            int plotH = h - padTop - padBottom;
+            if (plotW <= 0 || plotH <= 0) return;
+
+            // Background & Border
+            ControlPaint.DrawBorder(g, new Rectangle(0, 0, w, h), Theme.BorderColor, ButtonBorderStyle.Solid);
+
+            double maxT = 4.0;
+            double maxSa = Math.Max(0.4, _params.Sds * 1.25);
+
+            // Draw Grid Lines & Labels
+            using (var penGrid = new Pen(Color.FromArgb(235, 240, 248), 1))
+            using (var brushLabel = new SolidBrush(Theme.TextMuted))
+            {
+                // X Grid (Period)
+                for (double t = 0.5; t <= maxT; t += 0.5)
+                {
+                    float x = padLeft + (float)((t / maxT) * plotW);
+                    g.DrawLine(penGrid, x, padTop, x, padTop + plotH);
+                    string tStr = $"{t:0.#}s";
+                    var sz = g.MeasureString(tStr, Theme.BodyFont);
+                    g.DrawString(tStr, Theme.BodyFont, brushLabel, x - sz.Width / 2, padTop + plotH + 6);
+                }
+
+                // Y Grid (Sa)
+                int saSteps = 5;
+                for (int i = 0; i <= saSteps; i++)
+                {
+                    double saVal = (maxSa / saSteps) * i;
+                    float y = padTop + plotH - (float)((saVal / maxSa) * plotH);
+                    g.DrawLine(penGrid, padLeft, y, padLeft + plotW, y);
+                    string saStr = $"{saVal:F2}g";
+                    var sz = g.MeasureString(saStr, Theme.BodyFont);
+                    g.DrawString(saStr, Theme.BodyFont, brushLabel, padLeft - sz.Width - 6, y - sz.Height / 2);
+                }
+            }
+
+            // Draw Curve Points & Fill Area
+            if (_currentCurve != null && _currentCurve.Count > 1)
+            {
+                var pts = new List<PointF>();
+                foreach (var pt in _currentCurve)
+                {
+                    float x = padLeft + (float)(Math.Min(pt.Period / maxT, 1.0) * plotW);
+                    float y = padTop + plotH - (float)(Math.Min(pt.Sa / maxSa, 1.0) * plotH);
+                    pts.Add(new PointF(x, y));
+                }
+
+                // Gradient Fill under curve
+                using (var fillPath = new System.Drawing.Drawing2D.GraphicsPath())
+                {
+                    fillPath.AddLine(pts[0].X, padTop + plotH, pts[0].X, pts[0].Y);
+                    for (int i = 1; i < pts.Count; i++) fillPath.AddLine(pts[i - 1], pts[i]);
+                    fillPath.AddLine(pts[pts.Count - 1].X, pts[pts.Count - 1].Y, pts[pts.Count - 1].X, padTop + plotH);
+                    fillPath.CloseFigure();
+
+                    using (var brushGrad = new System.Drawing.Drawing2D.LinearGradientBrush(
+                        new Point(0, padTop), new Point(0, padTop + plotH),
+                        Color.FromArgb(90, 40, 85, 167), Color.FromArgb(15, 40, 85, 167)))
+                    {
+                        g.FillPath(brushGrad, fillPath);
+                    }
+                }
+
+                // Curve Line
+                using (var penCurve = new Pen(Theme.Primary, 2.8f))
+                {
+                    g.DrawLines(penCurve, pts.ToArray());
+                }
+
+                // T0 and Ts Markers
+                using (var penMarker = new Pen(Theme.Warning, 1.5f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+                using (var brushMarker = new SolidBrush(Theme.TextDark))
+                {
+                    float xT0 = padLeft + (float)(_params.T0 / maxT * plotW);
+                    float xTs = padLeft + (float)(_params.Ts / maxT * plotW);
+                    float ySds = padTop + plotH - (float)(_params.Sds / maxSa * plotH);
+
+                    if (xT0 >= padLeft && xT0 <= padLeft + plotW)
+                    {
+                        g.DrawLine(penMarker, xT0, padTop, xT0, padTop + plotH);
+                        g.DrawString($"T0={_params.T0:F3}s", Theme.BoldFont, brushMarker, xT0 + 3, padTop + plotH - 22);
+                    }
+
+                    if (xTs >= padLeft && xTs <= padLeft + plotW)
+                    {
+                        g.DrawLine(penMarker, xTs, padTop, xTs, padTop + plotH);
+                        g.DrawString($"Ts={_params.Ts:F3}s", Theme.BoldFont, brushMarker, xTs + 3, padTop + 24);
+                    }
+
+                    // SDS Plateau marker
+                    g.DrawString($"SDS = {_params.Sds:F3}g", Theme.BoldFont, new SolidBrush(Theme.Success), padLeft + 10, ySds - 18);
+                }
+            }
+
+            // Axes
+            using (var penAxis = new Pen(Theme.TextDark, 1.5f))
+            {
+                g.DrawLine(penAxis, padLeft, padTop, padLeft, padTop + plotH); // Y Axis
+                g.DrawLine(penAxis, padLeft, padTop + plotH, padLeft + plotW, padTop + plotH); // X Axis
+            }
         }
 
         private void PopulateCities()
@@ -146,11 +289,13 @@ namespace EtabsHelper.UI.Pages
             _lblTs.Text = $"Ts = {_params.Ts:F3} s";
             _lblSdc.Text = $"Seismic Design Category (SDC): {_params.SeismicDesignCategory}";
 
-            // Populate Spectrum Table
+            // Populate Spectrum Table & Canvas
             _spectrumTable.Rows.Clear();
-            var curve = _params.GenerateSpectrumCurve();
-            foreach (var pt in curve)
+            _currentCurve = _params.GenerateSpectrumCurve();
+            foreach (var pt in _currentCurve)
                 _spectrumTable.Rows.Add(pt.Period.ToString("F3"), pt.Sa.ToString("F4"));
+
+            _spectrumCanvas?.Invalidate();
         }
 
         private void Inject()

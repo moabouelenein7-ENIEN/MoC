@@ -61,26 +61,32 @@ namespace EtabsHelper.Combinations
             string ex = "EX",
             string ey = "EY",
             string wx = "WX",
-            string wy = "WY")
+            string wy = "WY",
+            string walls = "WALLS")
         {
             var combos = new List<LoadCombo>();
 
+            // Helper to add superimposed dead loads (SDL and WALLS)
+            void AddDeadLoads(LoadCombo combo, double factor)
+            {
+                combo.Add(dead, factor);
+                if (!string.IsNullOrEmpty(sdl)) combo.Add(sdl, factor);
+                if (!string.IsNullOrEmpty(walls)) combo.Add(walls, factor);
+            }
+
             // --- 1. BASIC GRAVITY ULTIMATE COMBINATIONS (SBC 304 §5.3.1) ---
             var u1 = new LoadCombo { Name = "U1-1.4D", Category = "Gravity" };
-            u1.Add(dead, 1.4);
-            u1.Add(sdl, 1.4);
+            AddDeadLoads(u1, 1.4);
             combos.Add(u1);
 
             var u2 = new LoadCombo { Name = "U2-1.2D+1.6L", Category = "Gravity" };
-            u2.Add(dead, 1.2);
-            u2.Add(sdl, 1.2);
+            AddDeadLoads(u2, 1.2);
             u2.Add(live, 1.6);
             u2.Add(roofLive, 0.5);
             combos.Add(u2);
 
             var u3 = new LoadCombo { Name = "U3-1.2D+1.6Lr+1.0L", Category = "Gravity" };
-            u3.Add(dead, 1.2);
-            u3.Add(sdl, 1.2);
+            AddDeadLoads(u3, 1.2);
             u3.Add(roofLive, 1.6);
             u3.Add(live, 1.0);
             combos.Add(u3);
@@ -105,8 +111,7 @@ namespace EtabsHelper.Combinations
                     {
                         // Gravity + Seismic
                         var c = new LoadCombo { Name = $"U_EQ_{seismicIndex++}", Category = "Seismic" };
-                        c.Add(dead, deadFactorPos);
-                        c.Add(sdl, deadFactorPos);
+                        AddDeadLoads(c, deadFactorPos);
                         c.Add(live, 1.0);
                         c.Add(ex, sx * 1.0);
                         c.Add(ey, sy * 0.3);
@@ -114,8 +119,7 @@ namespace EtabsHelper.Combinations
 
                         // Uplift
                         var cUp = new LoadCombo { Name = $"U_EQ_Up_{seismicIndex++}", Category = "Seismic Uplift" };
-                        cUp.Add(dead, deadFactorUplift);
-                        cUp.Add(sdl, deadFactorUplift);
+                        AddDeadLoads(cUp, deadFactorUplift);
                         cUp.Add(ex, sx * 1.0);
                         cUp.Add(ey, sy * 0.3);
                         combos.Add(cUp);
@@ -128,16 +132,14 @@ namespace EtabsHelper.Combinations
                     foreach (var sy in eySigns)
                     {
                         var c = new LoadCombo { Name = $"U_EQ_{seismicIndex++}", Category = "Seismic" };
-                        c.Add(dead, deadFactorPos);
-                        c.Add(sdl, deadFactorPos);
+                        AddDeadLoads(c, deadFactorPos);
                         c.Add(live, 1.0);
                         c.Add(ex, sx * 0.3);
                         c.Add(ey, sy * 1.0);
                         combos.Add(c);
 
                         var cUp = new LoadCombo { Name = $"U_EQ_Up_{seismicIndex++}", Category = "Seismic Uplift" };
-                        cUp.Add(dead, deadFactorUplift);
-                        cUp.Add(sdl, deadFactorUplift);
+                        AddDeadLoads(cUp, deadFactorUplift);
                         cUp.Add(ex, sx * 0.3);
                         cUp.Add(ey, sy * 1.0);
                         combos.Add(cUp);
@@ -158,8 +160,7 @@ namespace EtabsHelper.Combinations
                     {
                         // 1.2D + 1.0W + 1.0L + 0.5Lr
                         var cw1 = new LoadCombo { Name = $"U_WIND_{windIndex++}", Category = "Wind" };
-                        cw1.Add(dead, 1.2);
-                        cw1.Add(sdl, 1.2);
+                        AddDeadLoads(cw1, 1.2);
                         cw1.Add(live, 1.0);
                         cw1.Add(roofLive, 0.5);
                         cw1.Add(wCase, sw * 1.0);
@@ -167,8 +168,7 @@ namespace EtabsHelper.Combinations
 
                         // 0.9D + 1.0W (Uplift / Overturning)
                         var cw2 = new LoadCombo { Name = $"U_WIND_Up_{windIndex++}", Category = "Wind Uplift" };
-                        cw2.Add(dead, 0.9);
-                        cw2.Add(sdl, 0.9);
+                        AddDeadLoads(cw2, 0.9);
                         cw2.Add(wCase, sw * 1.0);
                         combos.Add(cw2);
                     }
@@ -177,19 +177,16 @@ namespace EtabsHelper.Combinations
 
             // --- 4. SERVICE COMBINATIONS (Deflections, Foundation Bearing Pressure) ---
             var s1 = new LoadCombo { Name = "S1-Total_DL+LL", Category = "Service" };
-            s1.Add(dead, 1.0);
-            s1.Add(sdl, 1.0);
+            AddDeadLoads(s1, 1.0);
             s1.Add(live, 1.0);
             combos.Add(s1);
 
             var s2 = new LoadCombo { Name = "S2-Dead_Only", Category = "Service" };
-            s2.Add(dead, 1.0);
-            s2.Add(sdl, 1.0);
+            AddDeadLoads(s2, 1.0);
             combos.Add(s2);
 
             var s3 = new LoadCombo { Name = "S3-LongTerm_DL+0.5LL", Category = "Service" };
-            s3.Add(dead, 1.0);
-            s3.Add(sdl, 1.0);
+            AddDeadLoads(s3, 1.0);
             s3.Add(live, 0.5);
             combos.Add(s3);
 
@@ -197,15 +194,13 @@ namespace EtabsHelper.Combinations
             {
                 // Service Earthquake (0.70 E)
                 var sEqX = new LoadCombo { Name = "S_EQX_0.70", Category = "Service Seismic" };
-                sEqX.Add(dead, 1.0);
-                sEqX.Add(sdl, 1.0);
+                AddDeadLoads(sEqX, 1.0);
                 sEqX.Add(live, 0.75);
                 sEqX.Add(ex, 0.70);
                 combos.Add(sEqX);
 
                 var sEqY = new LoadCombo { Name = "S_EQY_0.70", Category = "Service Seismic" };
-                sEqY.Add(dead, 1.0);
-                sEqY.Add(sdl, 1.0);
+                AddDeadLoads(sEqY, 1.0);
                 sEqY.Add(live, 0.75);
                 sEqY.Add(ey, 0.70);
                 combos.Add(sEqY);

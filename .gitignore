@@ -21,3 +21,11 @@ Desktop.ini
 $RECYCLE.BIN/
 *.tmp
 *.log
+
+## Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+env/
+venv/

@@ -207,6 +207,7 @@ namespace EtabsHelper.Builder
 
             model.LoadPatterns.Add("DEAD", eLoadPatternType.Dead, 1.0, true);
             model.LoadPatterns.Add("SDL", eLoadPatternType.SuperDead, 0.0, true);
+            model.LoadPatterns.Add("WALLS", eLoadPatternType.SuperDead, 0.0, true);
             model.LoadPatterns.Add("LIVE", eLoadPatternType.Live, 0.0, true);
             model.LoadPatterns.Add("ROOFLIVE", eLoadPatternType.Rooflive, 0.0, true);
             model.LoadPatterns.Add("EX", eLoadPatternType.Quake, 0.0, true);
@@ -214,7 +215,7 @@ namespace EtabsHelper.Builder
             model.LoadPatterns.Add("WX", eLoadPatternType.Wind, 0.0, true);
             model.LoadPatterns.Add("WY", eLoadPatternType.Wind, 0.0, true);
 
-            log?.Invoke("Load patterns DEAD, SDL, LIVE, ROOFLIVE, EX, EY, WX, WY ready.");
+            log?.Invoke("Load patterns DEAD, SDL, WALLS, LIVE, ROOFLIVE, EX, EY, WX, WY ready.");
         }
 
         public static void BuildCombinations(cSapModel model, List<LoadCombo> combos, Action<string> log = null)
@@ -269,6 +270,140 @@ namespace EtabsHelper.Builder
             }
 
             log?.Invoke($"Created P1..P{pierCount} and S1..S{spandrelCount} labels.");
+        }
+
+        /// <summary>
+        /// Applies linear wall distributed load to currently selected frame members in ETABS.
+        /// </summary>
+        public static int ApplyWallLoadToSelected(cSapModel model, double loadKnPerM, string patternName = "WALLS", Action<string> log = null)
+        {
+            if (model == null) return 0;
+            int count = 0;
+
+            EtabsConnector.WithUnits(model, () =>
+            {
+                // Ensure load pattern exists
+                try
+                {
+                    model.LoadPatterns.Add(patternName, eLoadPatternType.SuperDead, 0.0, true);
+                }
+                catch { }
+
+                int numSelected = 0;
+                int[] objTypes = null;
+                string[] objNames = null;
+
+                // Query selected objects in ETABS
+                model.SelectObj.GetSelected(ref numSelected, ref objTypes, ref objNames);
+
+                if (numSelected == 0 || objNames == null)
+                {
+                    log?.Invoke("No elements are currently selected in ETABS. Please select beam frames first.");
+                    return;
+                }
+
+                for (int i = 0; i < numSelected; i++)
+                {
+                    // Object type 2 = Frame Object
+                    if (objTypes[i] == 2)
+                    {
+                        string frameName = objNames[i];
+                        // Dir = 6 (Gravity, -Z global), MyType = 1 (Force per length)
+                        int ret = model.FrameObj.SetLoadDistributed(
+                            frameName,
+                            patternName,
+                            1,
+                            6,
+                            0.0,
+                            1.0,
+                            loadKnPerM,
+                            loadKnPerM,
+                            "Global",
+                            true,
+                            true,
+                            eItemType.Objects);
+
+                        if (ret == 0) count++;
+                    }
+                }
+            }, eUnits.kN_m_C);
+
+            log?.Invoke($"Successfully applied {loadKnPerM:F2} kN/m under '{patternName}' to {count} selected frames.");
+            return count;
+        }
+
+        /// <summary>
+        /// One-click assignment of SBC 304 §6.6.3 cracked section stiffness modifiers to all concrete frames and shells.
+        /// Beams: 0.35 Ig | Columns: 0.70 Ig | Slabs: 0.25 Ig | Walls: 0.35/0.70 Ig
+        /// </summary>
+        public static void ApplySbc304PropertyModifiers(cSapModel model, Action<string> log = null)
+        {
+            if (model == null) return;
+            log?.Invoke("Applying SBC 304 §6.6.3 cracked stiffness modifiers across active model...");
+
+            EtabsConnector.WithUnits(model, () =>
+            {
+                int frameCount = 0;
+                int shellCount = 0;
+
+                // 1. Frames (Beams & Columns)
+                int numFrames = 0;
+                string[] frameNames = null;
+                model.FrameObj.GetNameList(ref numFrames, ref frameNames);
+
+                if (numFrames > 0 && frameNames != null)
+                {
+                    double[] beamMods = { 1.0, 1.0, 1.0, 0.35, 0.35, 0.35, 1.0, 1.0 };
+                    double[] colMods = { 1.0, 1.0, 1.0, 0.70, 0.70, 0.70, 1.0, 1.0 };
+
+                    foreach (var fn in frameNames)
+                    {
+                        eFrameDesignOrientation orient = eFrameDesignOrientation.Null;
+                        model.FrameObj.GetDesignOrientation(fn, ref orient);
+
+                        if (orient == eFrameDesignOrientation.Column)
+                        {
+                            model.FrameObj.SetModifiers(fn, ref colMods);
+                            frameCount++;
+                        }
+                        else if (orient == eFrameDesignOrientation.Beam)
+                        {
+                            model.FrameObj.SetModifiers(fn, ref beamMods);
+                            frameCount++;
+                        }
+                    }
+                }
+
+                // 2. Shells (Slabs & Walls)
+                int numAreas = 0;
+                string[] areaNames = null;
+                model.AreaObj.GetNameList(ref numAreas, ref areaNames);
+
+                if (numAreas > 0 && areaNames != null)
+                {
+                    double[] slabMods = { 1.0, 1.0, 1.0, 0.25, 0.25, 0.25, 0.25, 0.25, 1.0, 1.0 };
+                    double[] wallMods = { 1.0, 1.0, 1.0, 0.35, 0.35, 0.35, 0.35, 0.35, 1.0, 1.0 };
+
+                    foreach (var an in areaNames)
+                    {
+                        eAreaDesignOrientation orient = eAreaDesignOrientation.Null;
+                        model.AreaObj.GetDesignOrientation(an, ref orient);
+
+                        if (orient == eAreaDesignOrientation.Wall)
+                        {
+                            model.AreaObj.SetModifiers(an, ref wallMods);
+                            shellCount++;
+                        }
+                        else if (orient == eAreaDesignOrientation.Floor)
+                        {
+                            model.AreaObj.SetModifiers(an, ref slabMods);
+                            shellCount++;
+                        }
+                    }
+                }
+
+                log?.Invoke($"Updated {frameCount} frames (Columns 0.70Ig, Beams 0.35Ig) and {shellCount} shells (Slabs 0.25Ig, Walls 0.35Ig) to SBC 304 code.");
+            });
         }
     }
 }

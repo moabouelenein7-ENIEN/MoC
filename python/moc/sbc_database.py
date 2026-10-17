@@ -96,8 +96,13 @@ class SeismicDesignParams:
         if cs > cs_max:
             cs = cs_max
 
-        # Lower limit
+        # Lower limit per SBC 301 Eq. 11.8-5
         cs_min = max(0.044 * self.Sds * self.importance_factor, 0.01)
+
+        # High seismicity near-fault check per SBC 301 Eq. 11.8-6 (for S1 >= 0.6g)
+        if self.S1 >= 0.6:
+            cs_min = max(cs_min, (0.5 * self.S1) / r_over_ie)
+
         if cs < cs_min:
             cs = cs_min
 

@@ -68,13 +68,16 @@ namespace EtabsHelper.UI.Pages
 
             // Bar 3: Action Buttons
             var pnlBottom = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-            var btnInject = Theme.CreateSuccessButton("🚀 Inject Sections & Modifiers into ETABS", 320, 42);
+            var btnInject = Theme.CreateSuccessButton("🚀 Inject Sections & Modifiers into ETABS", 300, 42);
             btnInject.Click += (s, e) => Inject();
+
+            var btnApplyGlobal = Theme.CreatePrimaryButton("⚡ Apply SBC 304 Modifiers to Model", 270, 42);
+            btnApplyGlobal.Click += (s, e) => ApplyGlobalModifiers();
 
             var btnDelete = Theme.CreateSecondaryButton("- Delete Selected", 140, 42);
             btnDelete.Click += (s, e) => DeleteSelected();
 
-            pnlBottom.Controls.AddRange(new Control[] { btnInject, btnDelete });
+            pnlBottom.Controls.AddRange(new Control[] { btnInject, btnApplyGlobal, btnDelete });
 
             mainLayout.Controls.Add(pnlTop, 0, 0);
             mainLayout.Controls.Add(_secTable, 0, 1);
@@ -134,6 +137,27 @@ namespace EtabsHelper.UI.Pages
             {
                 _logger?.Invoke($"Error injecting sections: {ex.Message}");
                 MessageBox.Show($"Failed to inject sections: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ApplyGlobalModifiers()
+        {
+            if (!EtabsConnector.IsConnected)
+            {
+                MessageBox.Show("Please connect to ETABS first.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                EtabsConnector.UnlockModel(_logger);
+                EtabsModelBuilder.ApplySbc304PropertyModifiers(EtabsConnector.ActiveModel, _logger);
+                MessageBox.Show("SBC 304 Cracked Stiffness Modifiers applied to all beams (0.35Ig), columns (0.70Ig), slabs (0.25Ig), and walls (0.35Ig) in active model!", "Modifiers Applied", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"Error applying modifiers: {ex.Message}");
+                MessageBox.Show($"Failed to apply modifiers: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
