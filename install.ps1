@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-    Installs MoCSI (ETABS Structural & BIM Suite) onto the workstation like MoBim.
+    Installs MoCSI (ETABS Structural Suite) onto the workstation.
 .DESCRIPTION
-    Runs the comprehensive deployment script matching MoBim's exact standards:
-    - Revit 2027 and 2026 Add-in deployment (%APPDATA%\Autodesk\Revit\Addins\<Year>\MoCSI.addin)
+    Runs the deployment script strictly for CSI ETABS and Standalone Suite:
     - In-Process ETABS 22 plugin integration (Tools > MoCSI - Structural Suite)
-    - Standalone Windows Application & Desktop shortcuts
+    - Standalone Windows Application (%LOCALAPPDATA%\Programs\MoCSI\MoCSI.exe) & Desktop shortcuts
     - Python automation suite with CustomTkinter GUI & SBC 301 database
+    (MoBim remains strictly your Revit add-in; MoCSI does not touch Revit).
 #>
 param(
     [ValidateSet('Release', 'Debug')][string]$Configuration = 'Release',
