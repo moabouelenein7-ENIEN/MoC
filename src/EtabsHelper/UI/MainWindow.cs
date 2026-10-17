@@ -184,6 +184,28 @@ namespace EtabsHelper.UI
             container.Controls.Add(btn);
         }
 
+        public void NavigateTo(int index)
+        {
+            if (index >= 0 && index < _navButtons.Count)
+            {
+                foreach (var b in _navButtons)
+                    b.BackColor = Theme.SidebarBg;
+                _navButtons[index].BackColor = Theme.SidebarActive;
+                UserControl target = index switch
+                {
+                    0 => _pageConn,
+                    1 => _pageDxf,
+                    2 => _pageGrids,
+                    3 => _pageSections,
+                    4 => _pageSeismic,
+                    5 => _pageCombos,
+                    6 => _pageResults,
+                    _ => _pageConn
+                };
+                ShowPage(target);
+            }
+        }
+
         private void ShowPage(UserControl page)
         {
             _contentPanel.Controls.Clear();
