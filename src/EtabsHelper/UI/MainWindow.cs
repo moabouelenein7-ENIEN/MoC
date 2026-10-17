@@ -31,7 +31,7 @@ namespace EtabsHelper.UI
 
             if (isInProcess && EtabsConnector.IsConnected)
             {
-                Text = "MoC — ETABS Structural Suite [In-Process]";
+                Text = "MoCSI — ETABS Structural Suite [In-Process]";
                 var info = EtabsConnector.GetModelInfo();
                 _lblStatusPill.Text = "🟢 Embedded in ETABS";
                 _lblStatusPill.ForeColor = Theme.Success;
@@ -49,7 +49,7 @@ namespace EtabsHelper.UI
 
         private void InitializeComponent()
         {
-            Text = "ETABS Helper — Structural Modeling & Design Suite";
+            Text = "MoCSI — ETABS Structural Modeling & Design Suite";
             Font = Theme.BodyFont;
             BackColor = Theme.WindowBg;
             StartPosition = FormStartPosition.CenterScreen;
@@ -67,8 +67,8 @@ namespace EtabsHelper.UI
 
             // App Brand Banner
             var pnlBrand = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.FromArgb(18, 22, 32), Padding = new Padding(16, 14, 16, 10) };
-            var lblBrand = new Label { Text = "ETABS HELPER", Font = new Font("Segoe UI", 12f, FontStyle.Bold), ForeColor = Color.White, AutoSize = true, Dock = DockStyle.Top };
-            var lblSub = new Label { Text = "SBC 301/304 Modeling Suite", Font = new Font("Segoe UI", 8.5f), ForeColor = Color.FromArgb(140, 160, 185), AutoSize = true, Dock = DockStyle.Bottom };
+            var lblBrand = new Label { Text = "MoCSI", Font = new Font("Segoe UI", 13f, FontStyle.Bold), ForeColor = Color.White, AutoSize = true, Dock = DockStyle.Top };
+            var lblSub = new Label { Text = "ETABS & SBC 301/304 Suite", Font = new Font("Segoe UI", 8.5f), ForeColor = Color.FromArgb(140, 160, 185), AutoSize = true, Dock = DockStyle.Bottom };
             pnlBrand.Controls.Add(lblBrand);
             pnlBrand.Controls.Add(lblSub);
 

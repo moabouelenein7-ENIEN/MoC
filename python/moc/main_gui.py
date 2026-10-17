@@ -1,5 +1,5 @@
 """
-MoC - Structural Engineering Automation Suite for CSI ETABS
+MoCSI - Structural Engineering Automation Suite for CSI ETABS
 Interactive Modern GUI Application using CustomTkinter
 Conforming to Saudi Building Code (SBC 301 & SBC 302).
 """
@@ -26,11 +26,11 @@ from moc.wall_calculator import WallLoadCalculator, WallLoadInput, WallLoadResul
 from moc.rebar_calculator import RebarCalculator, RebarResult
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-logger = logging.getLogger("MoC.GUI")
+logger = logging.getLogger("MoCSI.GUI")
 
 
-class MoCApp(ctk.CTk):
-    """Main Application Window for MoC Structural Suite."""
+class MoCSIApp(ctk.CTk):
+    """Main Application Window for MoCSI Structural Suite."""
 
     def __init__(self):
         super().__init__()
@@ -39,7 +39,7 @@ class MoCApp(ctk.CTk):
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
 
-        self.title("MoC — Structural Automation Suite (SBC 301 / 304 / ETABS)")
+        self.title("MoCSI — Structural Automation Suite (SBC 301 / 304 / ETABS)")
         self.geometry("1180x820")
         self.minsize(1050, 720)
 
@@ -74,7 +74,7 @@ class MoCApp(ctk.CTk):
 
         title_lbl = ctk.CTkLabel(
             title_box,
-            text="🏛️ MoC Structural Suite",
+            text="🏛️ MoCSI Structural Suite",
             font=ctk.CTkFont(size=20, weight="bold"),
         )
         title_lbl.pack(anchor="w")
@@ -970,8 +970,11 @@ Final Effective Linear Load:
                 messagebox.showerror("Export Error", f"Failed to export to Excel:\n{ex}")
 
 
+MoCApp = MoCSIApp
+
+
 def main():
-    app = MoCApp()
+    app = MoCSIApp()
     app.mainloop()
 
 

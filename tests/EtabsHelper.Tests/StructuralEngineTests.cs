@@ -15,6 +15,8 @@ namespace EtabsHelper.Tests
     public class StructuralEngineTests
     {
         [Theory]
+        [InlineData("MoCSI.cPlugin")]
+        [InlineData("MoCSIPlugin.cPlugin")]
         [InlineData("MoC.cPlugin")]
         [InlineData("EtabsHelper.cPlugin")]
         [InlineData("MoCPlugin.cPlugin")]
@@ -34,7 +36,7 @@ namespace EtabsHelper.Tests
             string info = null;
             int ret = contract.Info(ref info);
             Assert.Equal(0, ret);
-            Assert.Contains("MoC", info);
+            Assert.Contains("MoCSI", info);
         }
 
         [Fact]
@@ -48,7 +50,7 @@ namespace EtabsHelper.Tests
             string info = null;
             int ret = contract.Info(ref info);
             Assert.Equal(0, ret);
-            Assert.Equal("MoC - ETABS Structural Modeling & Design Suite (SBC 301/304)", info);
+            Assert.Equal("MoCSI - ETABS Structural Modeling & Design Suite (SBC 301/304)", info);
         }
 
         [Fact]

@@ -1,7 +1,7 @@
 @echo off
-title MoC - Structural Engineering Automation Suite (SBC 301 / ETABS)
+title MoCSI - Structural Engineering Automation Suite (SBC 301 / ETABS)
 echo ========================================================
-echo   Launching MoC Structural Automation Suite (Python)
+echo   Launching MoCSI Structural Automation Suite (Python)
 echo   Saudi Building Code (SBC 301 / 304) - CSI ETABS
 echo ========================================================
 cd /d "%~dp0"

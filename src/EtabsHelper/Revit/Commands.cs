@@ -8,7 +8,7 @@ using Autodesk.Revit.UI;
 using EtabsHelper.Connection;
 using EtabsHelper.UI;
 
-namespace MoC.Commands
+namespace MoCSI.Commands
 {
     internal class WindowWrapper : IWin32Window
     {
@@ -43,7 +43,7 @@ namespace MoC.Commands
             catch (Exception ex)
             {
                 message = ex.Message;
-                Autodesk.Revit.UI.TaskDialog.Show("MoC ETABS Suite", "Error launching MoC Suite:\n" + ex.Message);
+                Autodesk.Revit.UI.TaskDialog.Show("MoCSI ETABS Suite", "Error launching MoCSI Suite:\n" + ex.Message);
                 return Result.Failed;
             }
         }
@@ -76,7 +76,7 @@ namespace MoC.Commands
             catch (Exception ex)
             {
                 message = ex.Message;
-                Autodesk.Revit.UI.TaskDialog.Show("MoC Seismic (SBC 301)", ex.Message);
+                Autodesk.Revit.UI.TaskDialog.Show("MoCSI Seismic (SBC 301)", ex.Message);
                 return Result.Failed;
             }
         }
@@ -109,7 +109,7 @@ namespace MoC.Commands
             catch (Exception ex)
             {
                 message = ex.Message;
-                Autodesk.Revit.UI.TaskDialog.Show("MoC Wall Loads", ex.Message);
+                Autodesk.Revit.UI.TaskDialog.Show("MoCSI Wall Loads", ex.Message);
                 return Result.Failed;
             }
         }
@@ -142,7 +142,7 @@ namespace MoC.Commands
             catch (Exception ex)
             {
                 message = ex.Message;
-                Autodesk.Revit.UI.TaskDialog.Show("MoC Rebar Detailer", ex.Message);
+                Autodesk.Revit.UI.TaskDialog.Show("MoCSI Rebar Detailer", ex.Message);
                 return Result.Failed;
             }
         }
@@ -154,12 +154,12 @@ namespace MoC.Commands
     {
         public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
         {
-            var dialog = new Autodesk.Revit.UI.TaskDialog("About MoC")
+            var dialog = new Autodesk.Revit.UI.TaskDialog("About MoCSI")
             {
-                MainInstruction = "MoC - ETABS Structural & BIM Suite",
-                MainContent = "MoC automates structural modeling, loading, analysis, and rebar detailing in accordance with the Saudi Building Code (SBC 301 & SBC 304).\n\n" +
+                MainInstruction = "MoCSI - ETABS Structural & BIM Suite",
+                MainContent = "MoCSI automates structural modeling, loading, analysis, and rebar detailing in accordance with the Saudi Building Code (SBC 301 & SBC 304).\n\n" +
                               "• Integrated in Revit 2027 / 2026\n" +
-                              "• In-Process ETABS Plugin (Tools > MoC)\n" +
+                              "• In-Process ETABS Plugin (Tools > MoCSI)\n" +
                               "• Standalone Desktop & Python Automation Suite\n" +
                               "• Version: 1.0.0",
                 CommonButtons = TaskDialogCommonButtons.Ok
@@ -168,4 +168,27 @@ namespace MoC.Commands
             return Result.Succeeded;
         }
     }
+}
+
+namespace MoC.Commands
+{
+    [Transaction(TransactionMode.Manual)]
+    [Regeneration(RegenerationOption.Manual)]
+    public class CmdEtabsSuite : MoCSI.Commands.CmdEtabsSuite { }
+
+    [Transaction(TransactionMode.Manual)]
+    [Regeneration(RegenerationOption.Manual)]
+    public class CmdSeismic : MoCSI.Commands.CmdSeismic { }
+
+    [Transaction(TransactionMode.Manual)]
+    [Regeneration(RegenerationOption.Manual)]
+    public class CmdWallLoads : MoCSI.Commands.CmdWallLoads { }
+
+    [Transaction(TransactionMode.Manual)]
+    [Regeneration(RegenerationOption.Manual)]
+    public class CmdRebar : MoCSI.Commands.CmdRebar { }
+
+    [Transaction(TransactionMode.Manual)]
+    [Regeneration(RegenerationOption.Manual)]
+    public class CmdAbout : MoCSI.Commands.CmdAbout { }
 }
