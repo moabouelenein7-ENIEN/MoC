@@ -37,7 +37,7 @@ namespace EtabsHelper.UI.Pages
             };
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 55)); // Header & Quick Add
             mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); // Table
-            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 55)); // Action Buttons
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 95)); // Action Buttons (2 rows)
 
             // Bar 1: Quick Add
             var pnlTop = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
@@ -67,17 +67,27 @@ namespace EtabsHelper.UI.Pages
             _secTable.Columns.Add("T", "Torsion Mod");
 
             // Bar 3: Action Buttons
-            var pnlBottom = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true };
-            var btnInject = Theme.CreateSuccessButton("🚀 Inject Sections & Modifiers into ETABS", 300, 42);
+            var pnlBottom = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
+            
+            var btnInject = Theme.CreateSuccessButton("🚀 Inject Sections & Modifiers into ETABS", 280, 38);
             btnInject.Click += (s, e) => Inject();
 
-            var btnApplyGlobal = Theme.CreatePrimaryButton("⚡ Apply SBC 304 Modifiers to Model", 270, 42);
+            var btnApplyGlobal = Theme.CreatePrimaryButton("⚡ Apply SBC 304 Modifiers to Model", 270, 38);
             btnApplyGlobal.Click += (s, e) => ApplyGlobalModifiers();
 
-            var btnDelete = Theme.CreateSecondaryButton("- Delete Selected", 140, 42);
+            var btnAutoDiaphragms = Theme.CreateSecondaryButton("🌐 Auto-Assign Diaphragms", 190, 38);
+            btnAutoDiaphragms.Click += (s, e) => AutoDiaphragms();
+
+            var btnAutoMesh = Theme.CreateSecondaryButton("🕸️ Auto-Mesh Slabs (1.0m)", 180, 38);
+            btnAutoMesh.Click += (s, e) => AutoMesh();
+
+            var btnAutoPiers = Theme.CreateSecondaryButton("🧱 Auto-Label Piers (P1..Pn)", 190, 38);
+            btnAutoPiers.Click += (s, e) => AutoPiers();
+
+            var btnDelete = Theme.CreateSecondaryButton("- Delete Selected", 140, 38);
             btnDelete.Click += (s, e) => DeleteSelected();
 
-            pnlBottom.Controls.AddRange(new Control[] { btnInject, btnApplyGlobal, btnDelete });
+            pnlBottom.Controls.AddRange(new Control[] { btnInject, btnApplyGlobal, btnAutoDiaphragms, btnAutoMesh, btnAutoPiers, btnDelete });
 
             mainLayout.Controls.Add(pnlTop, 0, 0);
             mainLayout.Controls.Add(_secTable, 0, 1);
@@ -158,6 +168,69 @@ namespace EtabsHelper.UI.Pages
             {
                 _logger?.Invoke($"Error applying modifiers: {ex.Message}");
                 MessageBox.Show($"Failed to apply modifiers: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void AutoDiaphragms()
+        {
+            if (!EtabsConnector.IsConnected)
+            {
+                MessageBox.Show("Please connect to ETABS first.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                EtabsConnector.UnlockModel(_logger);
+                int count = EtabsModelBuilder.AutoAssignStoryDiaphragms(EtabsConnector.ActiveModel, _logger);
+                MessageBox.Show($"Successfully assigned rigid diaphragms to {count} floor slabs story-by-story!", "Diaphragms Assigned", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"Error assigning diaphragms: {ex.Message}");
+                MessageBox.Show($"Failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void AutoMesh()
+        {
+            if (!EtabsConnector.IsConnected)
+            {
+                MessageBox.Show("Please connect to ETABS first.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                EtabsConnector.UnlockModel(_logger);
+                int count = EtabsModelBuilder.AutoAssignSlabAutoMesh(EtabsConnector.ActiveModel, 1.0, _logger);
+                MessageBox.Show($"Successfully configured 1.0m auto-meshing on {count} floor slabs!", "Auto-Mesh Configured", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"Error configuring mesh: {ex.Message}");
+                MessageBox.Show($"Failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void AutoPiers()
+        {
+            if (!EtabsConnector.IsConnected)
+            {
+                MessageBox.Show("Please connect to ETABS first.", "Not Connected", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            try
+            {
+                EtabsConnector.UnlockModel(_logger);
+                int count = EtabsModelBuilder.AutoAssignShearWallPiers(EtabsConnector.ActiveModel, _logger);
+                MessageBox.Show($"Successfully auto-assigned Pier labels to {count} continuous vertical shear wall panels!", "Piers Labeled", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                _logger?.Invoke($"Error auto-labeling piers: {ex.Message}");
+                MessageBox.Show($"Failed: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }

@@ -153,7 +153,7 @@ namespace EtabsHelper.UI
             AddNavButton(pnlNav, "⚡ Seismic (SBC 301)", _pageSeismic);
             AddNavButton(pnlNav, "🔀 Load Combos (SBC 304)", _pageCombos);
             AddNavButton(pnlNav, "🧬 Rebar Detailing (SBC 304)", _pageRebar);
-            AddNavButton(pnlNav, "📊 Reactions & SAFE Export", _pageResults);
+            AddNavButton(pnlNav, "🛡️ QA/QC & Audit (SBC 301)", _pageResults);
 
             _sidebar.Controls.Add(pnlNav);
             _sidebar.Controls.Add(pnlBrand);

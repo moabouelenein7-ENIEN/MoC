@@ -20,6 +20,28 @@ namespace EtabsHelper.Analysis
         public bool Passed => InelasticDrift <= Limit;
     }
 
+    public class TorsionalResult
+    {
+        public string Story { get; set; } = "";
+        public string LoadCase { get; set; } = "";
+        public string Direction { get; set; } = "X";
+        public double DeltaMax { get; set; }
+        public double DeltaMin { get; set; }
+        public double DeltaAvg => Math.Round((DeltaMax + DeltaMin) / 2.0, 6);
+        public double Ratio => DeltaAvg > 0 ? Math.Round(DeltaMax / DeltaAvg, 3) : 1.0;
+        public string IrregularityType
+        {
+            get
+            {
+                if (Ratio > 1.40) return "⚠️ Type 1b: Extreme Torsional (>1.40)";
+                if (Ratio > 1.20) return "⚠️ Type 1a: Torsional (>1.20)";
+                return "✅ Regular (≤1.20)";
+            }
+        }
+        public double Ax => Ratio > 1.20 ? Math.Round(Math.Min(3.0, Math.Max(1.0, Math.Pow(DeltaMax / (1.2 * DeltaAvg), 2))), 2) : 1.0;
+        public bool IsIrregular => Ratio > 1.20;
+    }
+
     public class ModalModeResult
     {
         public int ModeNumber { get; set; }
@@ -31,6 +53,20 @@ namespace EtabsHelper.Analysis
         public double CumulativeUx { get; set; }
         public double CumulativeUy { get; set; }
         public double CumulativeRz { get; set; }
+
+        public string PredominantMotion
+        {
+            get
+            {
+                double max = Math.Max(MassParticipationUx, Math.Max(MassParticipationUy, MassParticipationRz));
+                if (max == MassParticipationUx && max > 10.0) return "Translational X";
+                if (max == MassParticipationUy && max > 10.0) return "Translational Y";
+                if (max == MassParticipationRz && max > 10.0) return "Torsional (Rz)";
+                return "Coupled";
+            }
+        }
+
+        public bool IsDangerousTorsionalFirstMode => (ModeNumber == 1 || ModeNumber == 2) && PredominantMotion.Contains("Torsional");
     }
 
     public class OverstressedMember
@@ -39,14 +75,16 @@ namespace EtabsHelper.Analysis
         public string Label { get; set; } = "";
         public string Story { get; set; } = "";
         public string Section { get; set; } = "";
-        public double PmmRatio { get; set; }
-        public double ShearRatio { get; set; }
+        public double Ratio { get; set; }
+        public double PmmRatio { get => Ratio; set => Ratio = value; }
         public string Status { get; set; } = "Overstressed";
         public string Details { get; set; } = "";
     }
 
     /// <summary>
-    /// Extracts modal results, story drift ratios against SBC 301 limits, and overstressed members.
+    /// Professional Structural QA/QC and Results Extractor for ETABS.
+    /// Evaluates modal mass participation, story drifts per SBC 301 Table 12.12-1,
+    /// torsional irregularities per SBC 301 §12.3.2, and locates overstressed elements.
     /// </summary>
     public static class ResultsExtractor
     {
@@ -68,7 +106,6 @@ namespace EtabsHelper.Analysis
                 double[] rx = null, ry = null, rz = null;
                 double[] sumRx = null, sumRy = null, sumRz = null;
 
-                // Modal Participating Mass Ratios (17 parameters)
                 int ret = model.Results.ModalParticipatingMassRatios(ref numResults, ref loadCase, ref stepType, ref stepNum, ref period,
                     ref ux, ref uy, ref uz, ref sumUx, ref sumUy, ref sumUz,
                     ref rx, ref ry, ref rz, ref sumRx, ref sumRy, ref sumRz);
@@ -109,7 +146,6 @@ namespace EtabsHelper.Analysis
                 string[] story = null, loadCase = null, stepType = null, direction = null, label = null;
                 double[] stepNum = null, drift = null, x = null, y = null, z = null;
 
-                // StoryDrifts (11 parameters)
                 int ret = model.Results.StoryDrifts(ref numResults, ref story, ref loadCase, ref stepType, ref stepNum,
                     ref direction, ref drift, ref label, ref x, ref y, ref z);
 
@@ -134,6 +170,62 @@ namespace EtabsHelper.Analysis
             return results;
         }
 
+        public static List<TorsionalResult> GetTorsionalIrregularities(cSapModel model)
+        {
+            var results = new List<TorsionalResult>();
+            if (model == null) return results;
+
+            EtabsConnector.WithUnits(model, () =>
+            {
+                int numResults = 0;
+                string[] story = null, loadCase = null, stepType = null, direction = null, label = null;
+                double[] stepNum = null, drift = null, x = null, y = null, z = null;
+
+                int ret = model.Results.StoryDrifts(ref numResults, ref story, ref loadCase, ref stepType, ref stepNum,
+                    ref direction, ref drift, ref label, ref x, ref y, ref z);
+
+                if (ret == 0 && numResults > 0)
+                {
+                    // Group by (Story, LoadCase, Direction)
+                    var groups = new Dictionary<string, List<double>>();
+
+                    for (int i = 0; i < numResults; i++)
+                    {
+                        string s = story[i];
+                        string lc = loadCase[i];
+                        string dir = direction[i];
+                        string key = $"{s}|{lc}|{dir}";
+
+                        if (!groups.ContainsKey(key))
+                            groups[key] = new List<double>();
+
+                        groups[key].Add(Math.Abs(drift[i]));
+                    }
+
+                    foreach (var kvp in groups)
+                    {
+                        var parts = kvp.Key.Split('|');
+                        var values = kvp.Value;
+                        if (values.Count == 0) continue;
+
+                        double dMax = values.Max();
+                        double dMin = values.Min();
+
+                        results.Add(new TorsionalResult
+                        {
+                            Story = parts[0],
+                            LoadCase = parts[1],
+                            Direction = parts[2],
+                            DeltaMax = dMax,
+                            DeltaMin = dMin
+                        });
+                    }
+                }
+            });
+
+            return results;
+        }
+
         public static List<OverstressedMember> GetOverstressedMembers(cSapModel model)
         {
             var list = new List<OverstressedMember>();
@@ -141,49 +233,127 @@ namespace EtabsHelper.Analysis
 
             EtabsConnector.WithUnits(model, () =>
             {
-                int numCols = 0;
-                string[] frameNames = null;
-                int[] options = null;
-                double[] locations = null;
-                string[] pmmCombos = null;
-                double[] pmmAreas = null;
-                double[] pmmRatios = null;
-                string[] vMajorCombos = null;
-                double[] avMajor = null;
-                string[] vMinorCombos = null;
-                double[] avMinor = null;
-                string[] errorSummary = null;
-                string[] warningSummary = null;
-
-                // GetSummaryResultsColumn (15 parameters)
-                int ret = model.DesignConcrete.GetSummaryResultsColumn("", ref numCols, ref frameNames,
-                    ref options, ref locations, ref pmmCombos, ref pmmAreas, ref pmmRatios,
-                    ref vMajorCombos, ref avMajor, ref vMinorCombos, ref avMinor,
-                    ref errorSummary, ref warningSummary, eItemType.Group);
-
-                if (ret == 0 && frameNames != null)
+                // 1. Column Design Summary
+                try
                 {
-                    for (int i = 0; i < frameNames.Length; i++)
-                    {
-                        double ratio = pmmRatios != null && pmmRatios.Length > i ? pmmRatios[i] : 0;
-                        string err = errorSummary != null && errorSummary.Length > i ? errorSummary[i] : "";
+                    int numCols = 0;
+                    string[] frameNames = null;
+                    int[] options = null;
+                    double[] locations = null;
+                    string[] pmmCombos = null;
+                    double[] pmmAreas = null;
+                    double[] pmmRatios = null;
+                    string[] vMajorCombos = null;
+                    double[] avMajor = null;
+                    string[] vMinorCombos = null;
+                    double[] avMinor = null;
+                    string[] errorSummary = null;
+                    string[] warningSummary = null;
 
-                        if (ratio > 1.0 || (!string.IsNullOrEmpty(err) && !err.Equals("None", StringComparison.OrdinalIgnoreCase)))
+                    int ret = model.DesignConcrete.GetSummaryResultsColumn("", ref numCols, ref frameNames,
+                        ref options, ref locations, ref pmmCombos, ref pmmAreas, ref pmmRatios,
+                        ref vMajorCombos, ref avMajor, ref vMinorCombos, ref avMinor,
+                        ref errorSummary, ref warningSummary, eItemType.Group);
+
+                    if (ret == 0 && frameNames != null)
+                    {
+                        for (int i = 0; i < frameNames.Length; i++)
                         {
-                            list.Add(new OverstressedMember
+                            double ratio = pmmRatios != null && pmmRatios.Length > i ? pmmRatios[i] : 0;
+                            string err = errorSummary != null && errorSummary.Length > i ? errorSummary[i] : "";
+
+                            if (ratio > 1.0 || (!string.IsNullOrEmpty(err) && !err.Equals("None", StringComparison.OrdinalIgnoreCase)))
                             {
-                                MemberType = "Column",
-                                Label = frameNames[i],
-                                PmmRatio = Math.Round(ratio, 3),
-                                Status = ratio > 1.0 ? "PMM Overstressed" : "Design Error",
-                                Details = err
-                            });
+                                list.Add(new OverstressedMember
+                                {
+                                    MemberType = "Column",
+                                    Label = frameNames[i],
+                                    Ratio = Math.Round(ratio, 3),
+                                    Status = ratio > 1.0 ? "PMM Overstressed" : "Design Error",
+                                    Details = string.IsNullOrEmpty(err) ? $"D/C = {ratio:F2} > 1.0" : err
+                                });
+                            }
                         }
                     }
                 }
+                catch { }
+
+                // 2. Beam Design Summary
+                try
+                {
+                    int numBeams = 0;
+                    string[] bFrameNames = null;
+                    double[] bLocations = null;
+                    string[] topCombos = null, botCombos = null, vMajorCombos = null, tlCombos = null, ttCombos = null;
+                    double[] topAreas = null, botAreas = null, vMajorAreas = null, tlAreas = null, ttAreas = null;
+                    string[] bErrorSummary = null, bWarningSummary = null;
+
+                    int retB = model.DesignConcrete.GetSummaryResultsBeam("", ref numBeams, ref bFrameNames,
+                        ref bLocations, ref topCombos, ref topAreas, ref botCombos, ref botAreas,
+                        ref vMajorCombos, ref vMajorAreas, ref tlCombos, ref tlAreas, ref ttCombos, ref ttAreas,
+                        ref bErrorSummary, ref bWarningSummary, eItemType.Group);
+
+                    if (retB == 0 && bFrameNames != null)
+                    {
+                        var seenBeams = new HashSet<string>();
+                        for (int i = 0; i < bFrameNames.Length; i++)
+                        {
+                            string err = bErrorSummary != null && bErrorSummary.Length > i ? bErrorSummary[i] : "";
+                            string beamName = bFrameNames[i];
+
+                            if (!string.IsNullOrEmpty(err) && !err.Equals("None", StringComparison.OrdinalIgnoreCase) && !seenBeams.Contains(beamName))
+                            {
+                                seenBeams.Add(beamName);
+                                list.Add(new OverstressedMember
+                                {
+                                    MemberType = "Beam",
+                                    Label = beamName,
+                                    Ratio = 1.0,
+                                    Status = "Beam Overstressed / Shear",
+                                    Details = err
+                                });
+                            }
+                        }
+                    }
+                }
+                catch { }
             });
 
             return list;
+        }
+
+        /// <summary>
+        /// Selects specified structural members in active ETABS 3D view for immediate visual inspection.
+        /// </summary>
+        public static void HighlightMembersInEtabs(cSapModel model, IEnumerable<string> memberNames, Action<string> log = null)
+        {
+            if (model == null || memberNames == null) return;
+
+            EtabsConnector.WithUnits(model, () =>
+            {
+                model.SelectObj.ClearSelection();
+                int count = 0;
+
+                foreach (var name in memberNames)
+                {
+                    if (string.IsNullOrWhiteSpace(name)) continue;
+                    // Attempt selection as Frame
+                    int ret = model.FrameObj.SetSelected(name, true, eItemType.Objects);
+                    if (ret == 0)
+                    {
+                        count++;
+                    }
+                    else
+                    {
+                        // Attempt selection as Area
+                        ret = model.AreaObj.SetSelected(name, true, eItemType.Objects);
+                        if (ret == 0) count++;
+                    }
+                }
+
+                model.View.RefreshView(0, false);
+                log?.Invoke($"Highlighted {count} elements in ETABS 3D viewport.");
+            });
         }
     }
 }

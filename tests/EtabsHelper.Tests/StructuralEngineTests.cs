@@ -253,8 +253,108 @@ namespace EtabsHelper.Tests
             // SBC 301 Eq. 11.8-6: Cs_min >= (0.5 * S1) / (R/I) = (0.5 * 0.7) / 8 = 0.04375
             double cs = p.CalculateCs(periodT: 2.5); // long period where normal Cs is small
             double expectedMinNearFault = (0.5 * 0.70) / 8.0;
-
             Assert.True(cs >= expectedMinNearFault);
+        }
+
+        [Fact]
+        public void CSiAPIv1_VerifySignatures()
+        {
+            var areaObjType = typeof(CSiAPIv1.cAreaObj);
+            var resultsType = typeof(CSiAPIv1.cAnalysisResults);
+            var concreteType = typeof(CSiAPIv1.cDesignConcrete);
+
+            Assert.NotNull(areaObjType.GetMethod("SetDiaphragm"));
+            Assert.NotNull(areaObjType.GetMethod("SetPier"));
+            Assert.NotNull(areaObjType.GetMethod("SetSpandrel"));
+            Assert.NotNull(areaObjType.GetMethod("GetPoints"));
+            Assert.NotNull(resultsType.GetMethod("StoryDrifts"));
+            Assert.NotNull(resultsType.GetMethod("ModalParticipatingMassRatios"));
+            Assert.NotNull(concreteType.GetMethod("GetSummaryResultsColumn"));
+            Assert.NotNull(concreteType.GetMethod("GetSummaryResultsBeam"));
+
+            var frameObjType = typeof(CSiAPIv1.cFrameObj);
+            var selectType = typeof(CSiAPIv1.cSelect);
+
+            Assert.NotNull(frameObjType.GetMethod("SetSelected"));
+            Assert.NotNull(selectType.GetMethod("ClearSelection"));
+            Assert.NotNull(areaObjType.GetMethod("SetAutoMesh"));
+            Assert.NotNull(areaObjType.GetMethod("SetDiaphragm"));
+            Assert.NotNull(areaObjType.GetMethod("SetPier"));
+        }
+
+        [Theory]
+        [InlineData(0.005, 0.005, 1.0, "Regular", 1.0)]
+        [InlineData(0.0065, 0.0035, 1.30, "Type 1a", 1.17)]
+        [InlineData(0.0075, 0.0025, 1.50, "Type 1b", 1.56)]
+        public void TorsionalResult_CalculatesRatioAndClassifiesIrregularity(double dMax, double dMin, double expectedRatio, string expectedClass, double expectedAx)
+        {
+            var res = new EtabsHelper.Analysis.TorsionalResult
+            {
+                Story = "Story 3",
+                LoadCase = "EX",
+                Direction = "X",
+                DeltaMax = dMax,
+                DeltaMin = dMin
+            };
+
+            Assert.Equal(expectedRatio, res.Ratio, 2);
+            Assert.Contains(expectedClass, res.IrregularityType);
+            Assert.Equal(expectedAx, res.Ax, 1);
+        }
+
+        [Fact]
+        public void ModalModeResult_IdentifiesDangerousTorsionalFirstMode()
+        {
+            var mode1 = new EtabsHelper.Analysis.ModalModeResult
+            {
+                ModeNumber = 1,
+                PeriodSec = 1.12,
+                MassParticipationUx = 5.0,
+                MassParticipationUy = 4.0,
+                MassParticipationRz = 68.0
+            };
+
+            Assert.Equal("Torsional (Rz)", mode1.PredominantMotion);
+            Assert.True(mode1.IsDangerousTorsionalFirstMode);
+
+            var mode2 = new EtabsHelper.Analysis.ModalModeResult
+            {
+                ModeNumber = 1,
+                PeriodSec = 0.95,
+                MassParticipationUx = 72.0,
+                MassParticipationUy = 2.0,
+                MassParticipationRz = 3.0
+            };
+
+            Assert.Equal("Translational X", mode2.PredominantMotion);
+            Assert.False(mode2.IsDangerousTorsionalFirstMode);
+        }
+
+        [Fact]
+        public void SbcComplianceReportGenerator_GeneratesValidHtmlWithBadges()
+        {
+            var data = new EtabsHelper.Export.SbcReportData
+            {
+                ProjectName = "Residential Tower Riyadh",
+                CityName = "Riyadh",
+                DriftResults = new List<EtabsHelper.Analysis.DriftResult>
+                {
+                    new EtabsHelper.Analysis.DriftResult { Story = "Story 1", LoadCase = "EX", Direction = "X", DriftRatio = 0.0015, Cd = 5.5, Ie = 1.0, Limit = 0.020 }
+                },
+                ModalResults = new List<EtabsHelper.Analysis.ModalModeResult>
+                {
+                    new EtabsHelper.Analysis.ModalModeResult { ModeNumber = 1, PeriodSec = 0.85, CumulativeUx = 92.0, CumulativeUy = 91.0, MassParticipationUx = 92.0 }
+                }
+            };
+
+            string html = EtabsHelper.Export.SbcComplianceReportGenerator.GenerateHtmlReport(data);
+
+            Assert.NotNull(html);
+            Assert.Contains("Residential Tower Riyadh", html);
+            Assert.Contains("SBC 301/304 Structural Compliance Report", html);
+            Assert.Contains("COMPLIANT", html);
+            Assert.Contains("Story Drift Verification", html);
+            Assert.Contains("Dynamic Modal Mass Participation", html);
         }
     }
 }

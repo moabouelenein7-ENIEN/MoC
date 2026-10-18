@@ -89,6 +89,25 @@ namespace EtabsHelper.UI
             return btn;
         }
 
+        public static Button CreateDangerButton(string text, int width = 160, int height = 36)
+        {
+            var btn = new Button
+            {
+                Text = text,
+                Width = width,
+                Height = height,
+                BackColor = Danger,
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = BoldFont,
+                Cursor = Cursors.Hand
+            };
+            btn.FlatAppearance.BorderSize = 0;
+            btn.MouseEnter += (s, e) => btn.BackColor = Color.FromArgb(200, 50, 40);
+            btn.MouseLeave += (s, e) => btn.BackColor = Danger;
+            return btn;
+        }
+
         public static DataGridView CreateStyledGrid()
         {
             var g = new DataGridView

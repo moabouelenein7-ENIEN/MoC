@@ -405,5 +405,227 @@ namespace EtabsHelper.Builder
                 log?.Invoke($"Updated {frameCount} frames (Columns 0.70Ig, Beams 0.35Ig) and {shellCount} shells (Slabs 0.25Ig, Walls 0.35Ig) to SBC 304 code.");
             });
         }
+
+        /// <summary>
+        /// Automatically assigns rigid floor diaphragms (D_StoryName) to all floor slabs story-by-story.
+        /// </summary>
+        public static int AutoAssignStoryDiaphragms(cSapModel model, Action<string> log = null)
+        {
+            if (model == null) return 0;
+            log?.Invoke("Assigning rigid diaphragms across all building stories...");
+            int totalAssigned = 0;
+
+            EtabsConnector.WithUnits(model, () =>
+            {
+                int numStories = 0;
+                string[] storyNames = null;
+                model.Story.GetNameList(ref numStories, ref storyNames);
+
+                if (numStories == 0 || storyNames == null)
+                {
+                    log?.Invoke("No stories found in the active ETABS model.");
+                    return;
+                }
+
+                foreach (var story in storyNames)
+                {
+                    string diagName = $"D_{story}";
+                    // Ensure diaphragm definition exists (false = rigid)
+                    model.Diaphragm.SetDiaphragm(diagName, false);
+
+                    int numAreas = 0;
+                    string[] areaNames = null;
+                    model.AreaObj.GetNameListOnStory(story, ref numAreas, ref areaNames);
+
+                    if (numAreas > 0 && areaNames != null)
+                    {
+                        foreach (var an in areaNames)
+                        {
+                            eAreaDesignOrientation orient = eAreaDesignOrientation.Null;
+                            model.AreaObj.GetDesignOrientation(an, ref orient);
+
+                            if (orient == eAreaDesignOrientation.Floor)
+                            {
+                                int ret = model.AreaObj.SetDiaphragm(an, diagName);
+                                if (ret == 0) totalAssigned++;
+                            }
+                        }
+                    }
+                }
+
+                model.View.RefreshView(0, false);
+                log?.Invoke($"Rigid diaphragms successfully assigned to {totalAssigned} floor slabs across {numStories} stories.");
+            });
+
+            return totalAssigned;
+        }
+
+        /// <summary>
+        /// Automatically configures floor slab auto-meshing (e.g. 1.0m quad mesh) with beam/wall cutlines.
+        /// </summary>
+        public static int AutoAssignSlabAutoMesh(cSapModel model, double maxMeshSizeM = 1.0, Action<string> log = null)
+        {
+            if (model == null) return 0;
+            log?.Invoke($"Configuring auto-meshing (max size: {maxMeshSizeM:F2}m) on all floor slabs...");
+            int meshedCount = 0;
+
+            EtabsConnector.WithUnits(model, () =>
+            {
+                int numAreas = 0;
+                string[] areaNames = null;
+                model.AreaObj.GetNameList(ref numAreas, ref areaNames);
+
+                if (numAreas > 0 && areaNames != null)
+                {
+                    foreach (var an in areaNames)
+                    {
+                        eAreaDesignOrientation orient = eAreaDesignOrientation.Null;
+                        model.AreaObj.GetDesignOrientation(an, ref orient);
+
+                        if (orient == eAreaDesignOrientation.Floor)
+                        {
+                            // MeshType 4 = Max element size mesh
+                            int ret = model.AreaObj.SetAutoMesh(
+                                an,
+                                4,
+                                0,
+                                0,
+                                maxMeshSizeM,
+                                maxMeshSizeM,
+                                true,
+                                true,
+                                true,
+                                0.0,
+                                maxMeshSizeM,
+                                false,
+                                false,
+                                false,
+                                false,
+                                "",
+                                false,
+                                0.0,
+                                eItemType.Objects);
+
+                            if (ret == 0) meshedCount++;
+                        }
+                    }
+                }
+
+                model.View.RefreshView(0, false);
+                log?.Invoke($"Auto-mesh options successfully configured on {meshedCount} floor slabs.");
+            }, eUnits.kN_m_C);
+
+            return meshedCount;
+        }
+
+        private class WallCluster
+        {
+            public double X { get; set; }
+            public double Y { get; set; }
+            public List<string> WallAreaNames { get; } = new List<string>();
+        }
+
+        /// <summary>
+        /// Automatically detects continuous vertical shear wall stacks across stories and assigns Pier labels (P1, P2...).
+        /// </summary>
+        public static int AutoAssignShearWallPiers(cSapModel model, Action<string> log = null)
+        {
+            if (model == null) return 0;
+            log?.Invoke("Scanning model for vertical shear wall stacks to auto-label Piers...");
+            int totalAssigned = 0;
+
+            EtabsConnector.WithUnits(model, () =>
+            {
+                int numAreas = 0;
+                string[] areaNames = null;
+                model.AreaObj.GetNameList(ref numAreas, ref areaNames);
+
+                if (numAreas == 0 || areaNames == null)
+                {
+                    log?.Invoke("No area objects found in model.");
+                    return;
+                }
+
+                var wallClusters = new List<WallCluster>();
+
+                foreach (var an in areaNames)
+                {
+                    eAreaDesignOrientation orient = eAreaDesignOrientation.Null;
+                    model.AreaObj.GetDesignOrientation(an, ref orient);
+
+                    if (orient == eAreaDesignOrientation.Wall)
+                    {
+                        int numPts = 0;
+                        string[] ptNames = null;
+                        model.AreaObj.GetPoints(an, ref numPts, ref ptNames);
+
+                        if (numPts > 0 && ptNames != null)
+                        {
+                            double sumX = 0, sumY = 0;
+                            int validPts = 0;
+
+                            for (int i = 0; i < numPts; i++)
+                            {
+                                double px = 0, py = 0, pz = 0;
+                                int pRet = model.PointObj.GetCoordCartesian(ptNames[i], ref px, ref py, ref pz, "Global");
+                                if (pRet == 0)
+                                {
+                                    sumX += px;
+                                    sumY += py;
+                                    validPts++;
+                                }
+                            }
+
+                            if (validPts > 0)
+                            {
+                                double avgX = sumX / validPts;
+                                double avgY = sumY / validPts;
+
+                                // Match existing cluster within 0.25m tolerance
+                                var cluster = wallClusters.FirstOrDefault(c =>
+                                    Math.Abs(c.X - avgX) <= 0.25 && Math.Abs(c.Y - avgY) <= 0.25);
+
+                                if (cluster == null)
+                                {
+                                    cluster = new WallCluster { X = avgX, Y = avgY };
+                                    wallClusters.Add(cluster);
+                                }
+
+                                cluster.WallAreaNames.Add(an);
+                            }
+                        }
+                    }
+                }
+
+                if (wallClusters.Count == 0)
+                {
+                    log?.Invoke("No vertical shear wall shells detected in the model.");
+                    return;
+                }
+
+                // Sort clusters by coordinates for orderly Pier labeling (P1, P2, P3...)
+                var sortedClusters = wallClusters
+                    .OrderBy(c => Math.Round(c.X, 1))
+                    .ThenBy(c => Math.Round(c.Y, 1))
+                    .ToList();
+
+                for (int pIdx = 0; pIdx < sortedClusters.Count; pIdx++)
+                {
+                    string pierName = $"P{pIdx + 1}";
+                    model.PierLabel.SetPier(pierName);
+
+                    foreach (var wallName in sortedClusters[pIdx].WallAreaNames)
+                    {
+                        int ret = model.AreaObj.SetPier(wallName, pierName, eItemType.Objects);
+                        if (ret == 0) totalAssigned++;
+                    }
+                }
+
+                model.View.RefreshView(0, false);
+                log?.Invoke($"Auto-assigned Pier labels (P1..P{sortedClusters.Count}) to {totalAssigned} wall panels across continuous vertical stacks.");
+            }, eUnits.kN_m_C);
+
+            return totalAssigned;
+        }
     }
 }
