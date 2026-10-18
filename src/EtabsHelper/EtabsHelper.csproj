@@ -18,14 +18,15 @@
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <CsiApiDll Condition="'$(CsiApiDll)' == ''">C:\Program Files\Computers and Structures\ETABS 22\CSiAPIv1.dll</CsiApiDll>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
 
   <!-- CSI ETABS COM API Reference (Resolved from installed ETABS) -->
   <ItemGroup>
     <Reference Include="CSiAPIv1">
       <HintPath>$(CsiApiDll)</HintPath>
-      <Private>true</Private>
-      <CopyLocal>true</CopyLocal>
+      <Private>false</Private>
+      <CopyLocal>false</CopyLocal>
     </Reference>
   </ItemGroup>
 
