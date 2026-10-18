@@ -24,8 +24,7 @@ namespace MoCSI
                     EtabsConnector.AttachExistingModel(SapModel);
                 }
 
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
+                try { Application.EnableVisualStyles(); } catch { }
 
                 // Attach to ETABS parent window handle so MoCSI runs seamlessly inside ETABS
                 IntPtr etabsHwnd = Process.GetCurrentProcess().MainWindowHandle;
